@@ -9,7 +9,7 @@ source("/panfs/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_Xuefe
 
 experiment = "ProjecTILs_each_CD8_to_HNSC_CD8"
 studies = c('EGAS00001004809', 'GSE123814', 'GSE139555', 'GSE159251', 'GSE176021', 'GSE179994', 'GSE180268', 'PRJNA705464')
-methods = c('Seurat', 'ProjecTIL', 'Cellcano')
+methods = c('Seurat', 'ProjecTIL', 'Cellcano', 'CellTypist')
 metrics = c('Acc', 'macroF1', 'ARI')
 
 metadata = read.csv(file.path(project_dir, 'data', 'HNSC_CD8T', 'HNSC_CD8T_metadata.csv'),
@@ -20,7 +20,9 @@ for (method in methods) {
     result_dir = file.path(project_dir, 'results', method, experiment)
     for (study in studies) {
         method_result_dir = file.path(result_dir, study)
-        if (method == 'CellTypist' || method == 'Cellcano') {
+        if (method == 'CellTypist') {
+            res = read.csv(file.path(method_result_dir, 'predicted_labels.csv'), row.names=1, header=T)
+        } else if (method == 'Cellcano') {
             res = read.csv(file.path(method_result_dir, paste0(method, '_predicted_celltypes.csv')), row.names=1, header=T)
         } else {
             res = read.csv(file.path(method_result_dir, paste0(method, '_predicted_results.csv')), row.names=1, header=T)
