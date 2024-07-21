@@ -1,0 +1,42 @@
+name: Test Conda Package
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'warning'
+        type: choice
+        options:
+        - info
+        - warning
+        - debug
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8"]
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install Conda environment with Micromamba
+      uses: mamba-org/provision-with-micromamba@main
+      with:
+          environment-file: false
+          environment-name: env-py${{ matrix.python-version}}
+          channels: default,conda-forge,marvinquiet
+          extra-specs: |
+            python=${{ matrix.python-version }}
+            cellcano-base
+    - name: Run Unittests
+      shell: bash -l {0}
+      run: |
+        python -m unittest
