@@ -89,7 +89,7 @@ def load_train_batch_adata(args):
         print("There are too few cells. Cellcano might not be accurate.")
     train_adata = train_adata[list(common_cells)]
     train_adata.obs = train_adata.obs.merge(metadata,
-            left_on="barcode", right_index=True, how='left')
+            left_on="barcode", right_index=True, how='left', suffixes=('', '_x')) ## keep left batch information
     ## preprocess data and select features
     train_adata = _utils._process_adata(train_adata, process_type='train')
     print("Data shape after processing: %d cells X %d genes" % (train_adata.shape[0], train_adata.shape[1]))
@@ -100,7 +100,7 @@ def load_train_batch_adata(args):
     _utils._save_adata(train_adata, args.output_dir, prefix=args.prefix)
     return train_adata
 
-in_MLP(args):
+def train_MLP(args):
     '''Train MLP model
         1. Load train data and metadata
         2. Feature selection
@@ -207,56 +207,56 @@ def train_KD(args):
             teacher_model=teacher.model)
     distiller.student.save(args.output_dir+os.sep+args.prefix+'KD_model')
 
-if __name__ == '__main__':
-    # --- train procedure
-    #input_dict = {'cmd_choice': 'train_batch',
-    #              'batch_dir': '/net/mulan/home/wenjinma/minicluster/projects/test_Cellcano_XuefengWang/CD8T_ref_data',
-    #              'input': ['HT2.2', 'HT3.3', 'SCT1.2', 'SCT1.3', 'RT14.1',
-    #                        'LT21.1', 'LT21.2', 'LT21.4',
-    #                        'LT26.2', 'LT26.3', 'LT35.2', 'LT39', 'LT40', 'LT58.2'],
-    #              'batch_info': [1, 1, 2, 2, 3,
-    #                             4, 4, 4,
-    #                             5, 5, 5, 5, 5, 5],
-    #              'metadata': '/net/mulan/home/wenjinma/minicluster/projects/test_Cellcano_XuefengWang/CD8T_ref_metadata.csv',
-    #              'model': 'MLP_batch',
-    #              'output_dir': '/net/mulan/home/wenjinma/minicluster/projects/test_Cellcano_XuefengWang/CD8T_ref_batch_result',
-    #              'prefix': 'train_',
-    #              'fs': 'F-test', 'num_features': 3000}
-
-    input_dict = {'cmd_choice': 'train_batch',
-                  'batch_dir': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/data/ProjecTILs_CD8T',
-                  'input': ['ProjecTIL_GSE180268_CD8T_trimmed',
-                            'ProjecTIL_GSE159251_CD8T_trimmed',
-                            'ProjecTIL_GSE123814_CD8T_trimmed',
-                            'ProjecTIL_GSE176021_CD8T_trimmed',
-                            'ProjecTIL_GSE139555_CD8T_trimmed',
-                            'ProjecTIL_PRJNA705464_CD8T_trimmed',
-                            'ProjecTIL_GSE179994_CD8T_trimmed',
-                            'ProjecTIL_EGAS00001004809_CD8T_trimmed'],
-                  'batch_info': [1, 2, 3, 4, 5, 6, 7, 8],
-                  'metadata': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/data/ProjecTILs_CD8T/ProjecTIL_CD8T_metadata.csv',
-                  'model': 'MLP_batch',
-                  'output_dir': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Cellcano_batch/ProjecTIL_CD8T_ref_batch_results',
-                  'prefix': 'train_',
-                  'fs': 'F-test', 'num_features': 3000}
-    import argparse
-    parser = argparse.ArgumentParser(description='Process existing arguments')
-    for key, value in input_dict.items():
-        parser.add_argument(f'--{key}', type=type(value), default=value, help=f'{key} description')
-    args = parser.parse_args()
-    if args.cmd_choice == 'train_batch':
-        train_bath_MLP(args)
-
-    # --- predict procedure
-    import predict
-    input_dict = {'trained_model': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Cellcano_batch/ProjecTIL_CD8T_ref_batch_results/train_MLP_model',
-            'input': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/data/HNSC_CD8T/HNSC_CD8T',
-            'oneround': False,
-            'output_dir': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Cellcano_batch/ProjecTIL_CD8T_ref_batch_results',
-            'prefix': 'HNSC_CD8T'}
-    predict_parser = argparse.ArgumentParser(description='Process existing arguments')
-    for key, value in input_dict.items():
-        predict_parser.add_argument(f'--{key}', type=type(value), default=value, help=f'{key} description')
-    predict_args = predict_parser.parse_args()
-    predict.predict(predict_args)
-
+#if __name__ == '__main__':
+#    # --- train procedure
+#    #input_dict = {'cmd_choice': 'train_batch',
+#    #              'batch_dir': '/net/mulan/home/wenjinma/minicluster/projects/test_Cellcano_XuefengWang/CD8T_ref_data',
+#    #              'input': ['HT2.2', 'HT3.3', 'SCT1.2', 'SCT1.3', 'RT14.1',
+#    #                        'LT21.1', 'LT21.2', 'LT21.4',
+#    #                        'LT26.2', 'LT26.3', 'LT35.2', 'LT39', 'LT40', 'LT58.2'],
+#    #              'batch_info': [1, 1, 2, 2, 3,
+#    #                             4, 4, 4,
+#    #                             5, 5, 5, 5, 5, 5],
+#    #              'metadata': '/net/mulan/home/wenjinma/minicluster/projects/test_Cellcano_XuefengWang/CD8T_ref_metadata.csv',
+#    #              'model': 'MLP_batch',
+#    #              'output_dir': '/net/mulan/home/wenjinma/minicluster/projects/test_Cellcano_XuefengWang/CD8T_ref_batch_result',
+#    #              'prefix': 'train_',
+#    #              'fs': 'F-test', 'num_features': 3000}
+#
+#    input_dict = {'cmd_choice': 'train_batch',
+#                  'batch_dir': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/data/ProjecTILs_CD8T',
+#                  'input': ['ProjecTIL_GSE180268_CD8T_trimmed',
+#                            'ProjecTIL_GSE159251_CD8T_trimmed',
+#                            'ProjecTIL_GSE123814_CD8T_trimmed',
+#                            'ProjecTIL_GSE176021_CD8T_trimmed',
+#                            'ProjecTIL_GSE139555_CD8T_trimmed',
+#                            'ProjecTIL_PRJNA705464_CD8T_trimmed',
+#                            'ProjecTIL_GSE179994_CD8T_trimmed',
+#                            'ProjecTIL_EGAS00001004809_CD8T_trimmed'],
+#                  'batch_info': [1, 2, 3, 4, 5, 6, 7, 8],
+#                  'metadata': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/data/ProjecTILs_CD8T/ProjecTIL_CD8T_metadata.csv',
+#                  'model': 'MLP_batch',
+#                  'output_dir': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Cellcano_batch/ProjecTIL_CD8T_ref_batch_results',
+#                  'prefix': 'train_',
+#                  'fs': 'F-test', 'num_features': 3000}
+#    import argparse
+#    parser = argparse.ArgumentParser(description='Process existing arguments')
+#    for key, value in input_dict.items():
+#        parser.add_argument(f'--{key}', type=type(value), default=value, help=f'{key} description')
+#    args = parser.parse_args()
+#    if args.cmd_choice == 'train_batch':
+#        train_bath_MLP(args)
+#
+#    # --- predict procedure
+#    import predict
+#    input_dict = {'trained_model': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Cellcano_batch/ProjecTIL_CD8T_ref_batch_results/train_MLP_model',
+#            'input': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/data/HNSC_CD8T/HNSC_CD8T',
+#            'oneround': False,
+#            'output_dir': '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Cellcano_batch/ProjecTIL_CD8T_ref_batch_results',
+#            'prefix': 'HNSC_CD8T'}
+#    predict_parser = argparse.ArgumentParser(description='Process existing arguments')
+#    for key, value in input_dict.items():
+#        predict_parser.add_argument(f'--{key}', type=type(value), default=value, help=f'{key} description')
+#    predict_args = predict_parser.parse_args()
+#    predict.predict(predict_args)
+#

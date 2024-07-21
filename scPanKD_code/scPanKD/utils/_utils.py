@@ -69,6 +69,8 @@ def _COOmtx_data_loader(mtx_prefix: str) -> A:
 
     adata = adata[:, adata.var_names.notnull()]
     adata.var_names=[i.upper() for i in list(adata.var_names)]
+    adata.var_names_make_unique(join="-")
+    adata.var.index.name = None
     return adata
 
 def _csv_data_loader(csv_input: str) -> A:
