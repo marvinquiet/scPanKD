@@ -11,20 +11,22 @@ conda activate Seurat
 cd /panfs/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/analysis
 
 declare -a exprs=(
-    "Chu_CD4T_validation"
-    "Chu_CD8T_validation"
-    "Zheng_CD4_to_Chu_CD4"
-    "GSE179994_CD8_to_HNSC_CD8"
-    "ProjecTILs_CD8_to_HNSC_CD8"
-    "GSE179994_CD8_to_Chu_CD8T"
-    "ProjecTILs_CD8_to_Chu_CD8T"
+    #"Chu_CD4T_validation"
+    #"Chu_CD8T_validation"
+    #"Zheng_CD4_to_Chu_CD4"
+    #"GSE179994_CD8_to_HNSC_CD8"
+    #"ProjecTILs_CD8_to_HNSC_CD8"
+    #"GSE179994_CD8_to_Chu_CD8T"
+    #"ProjecTILs_CD8_to_Chu_CD8T"
+    "Chu_CD4T_multibatch_validation"
 )
 declare -a methods=(
     #"Seurat"
     # "scType"
     #"ProjecTIL"
-    "Cellcano"
-    "CellTypist"
+    #"Cellcano"
+    #"CellTypist"
+    "scPanKD"
 )
 
 for method in ${methods[@]}; do

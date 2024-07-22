@@ -24,7 +24,7 @@ result_dir = file.path(project_dir, 'results', opt$method)
 method_result_dir = file.path(result_dir, opt$experiment)
 data_dir = file.path(project_dir, 'data')
 ## load ground truth label
-if (opt$experiment == 'Chu_CD4T_validation' || opt$experiment == 'Zheng_CD4_to_Chu_CD4') {
+if (opt$experiment == 'Chu_CD4T_validation' || opt$experiment == 'Zheng_CD4_to_Chu_CD4' || opt$experiment == 'Chu_CD4T_multibatch_validation') {
     metadata = read.csv(file.path(data_dir, 'Chu_pancancer_CD4T', 'test_20_pancanT_metadata.csv'), header=T, row.names=1)
 }
 if (opt$experiment == 'Chu_CD8T_validation' || opt$experiment == 'GSE179994_CD8_to_Chu_CD8T' || opt$experiment == 'ProjecTILs_CD8_to_Chu_CD8T') {
@@ -36,7 +36,7 @@ if (opt$experiment == 'GSE179994_CD8_to_HNSC_CD8' || opt$experiment == 'ProjecTI
 }
 
 ## load predicted data
-if (opt$method == 'CellTypist' || opt$method == 'Cellcano') {
+if (opt$method == 'CellTypist' || opt$method == 'Cellcano' || opt$method == 'scPanKD') {
     res = read.csv(file.path(method_result_dir, paste0(opt$method, '_predicted_celltypes.csv')), row.names=1, header=T)
 } else {
     res = read.csv(file.path(method_result_dir, paste0(opt$method, '_predicted_results.csv')), row.names=1, header=T)
@@ -53,7 +53,7 @@ if (opt$method == 'scType' || opt$method == 'CellTypist') {
     result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
     write.csv(result_df, file.path(method_result_dir, paste0(opt$method, '_results_metrics.csv')), quote=F)
 }
-if (opt$method == 'Cellcano') {
+if (opt$method == 'Cellcano' || opt$method == 'scPanKD') {
     pred_res = data.frame(source=metadata$curated_celltype, target=res$pred_celltype)
     acc = calculate_accuracy(pred_res[, 1], pred_res[, 2])
     F1 = calculate_macroF1(pred_res[, 1], pred_res[, 2])

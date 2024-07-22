@@ -69,16 +69,18 @@ def predict(args):
         test_adata = test_adata[:, feature_idx]
     print("Data shape after processing: %d cells X %d genes"  % (test_adata.shape[0], test_adata.shape[1]))
 
-    if test_adata.shape[0] >= 1000:
-        ## center scale data by test data -> using feature information from test data and do two-step
-        test_adata = _utils._scale_data(test_adata)
-        test_data_mat = _utils._extract_adata(test_adata)
-    else:
-        ## scale data by train data mu/std
-        test_data_mat = _utils._extract_adata(test_adata)
-        test_adata.var['mean'] = np.mean(test_data_mat, axis=0).reshape(-1, 1)
-        test_adata.var['std'] = np.std(test_data_mat, axis=0).reshape(-1, 1)
-        test_data_mat = (test_data_mat - np.array(features['mean']))/np.array(features['std'])
+    #if test_adata.shape[0] >= 1000:
+    #    ## center scale data by test data -> using feature information from test data and do two-step
+    #    test_adata = _utils._scale_data(test_adata)
+    #    test_data_mat = _utils._extract_adata(test_adata)
+    #else:
+    #    ## scale data by train data mu/std
+    #    test_data_mat = _utils._extract_adata(test_adata)
+    #    test_adata.var['mean'] = np.mean(test_data_mat, axis=0).reshape(-1, 1)
+    #    test_adata.var['std'] = np.std(test_data_mat, axis=0).reshape(-1, 1)
+    #    test_data_mat = (test_data_mat - np.array(features['mean']))/np.array(features['std'])
+    test_adata = _utils._scale_data(test_adata)
+    test_data_mat = _utils._extract_adata(test_adata)
 
     y_pred = tf.nn.softmax(model.predict(test_data_mat)).numpy()
     pred_celltypes = _utils._prob_to_label(y_pred, encoders)

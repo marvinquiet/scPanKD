@@ -95,8 +95,15 @@ def load_train_batch_adata(args):
     print("Data shape after processing: %d cells X %d genes" % (train_adata.shape[0], train_adata.shape[1]))
     train_adata = _utils._select_feature(train_adata,
             fs_method=args.fs, num_features=args.num_features)
-    train_adata = _utils._scale_data(train_adata) ## center-scale
-    _utils._visualize_data(train_adata, args.output_dir, prefix=args.prefix)
+    # TODO: test whether center scale for each batch would help.. -> not sure yet
+    #train_adata = _utils._scale_data(train_adata) ## center-scale
+    batch_adata_list = []
+    for batch in set(train_adata.obs['batch']):
+        batch_adata = train_adata[train_adata.obs['batch'] == batch]
+        batch_adata = _utils._scale_data(batch_adata)
+        batch_adata_list.append(batch_adata)
+    train_adata = anndata.concat(batch_adata_list, axis=0)
+    _utils._visualize_data(train_adata, args.output_dir, prefix=args.prefix, reduction="UMAP")
     _utils._save_adata(train_adata, args.output_dir, prefix=args.prefix)
     return train_adata
 
@@ -168,7 +175,8 @@ def train_bath_MLP(args):
     mlp_backbone.save(model_save_dir)
 
     ## save feature information along with mean and standard deviation
-    train_adata.var.loc[:, ['mean', 'std']].to_csv(model_save_dir+os.sep+"features.txt", sep='\t')
+    #train_adata.var.loc[:, ['mean', 'std']].to_csv(model_save_dir+os.sep+"features.txt", sep='\t')
+    train_adata.var.to_csv(model_save_dir+os.sep+"features.txt", sep='\t')
     ## save enc information
     with open(model_save_dir+os.sep+"onehot_encoder.txt", 'w') as f:
         for idx, cat in enumerate(enc.categories_[0]):
