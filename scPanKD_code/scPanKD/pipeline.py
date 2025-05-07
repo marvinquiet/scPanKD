@@ -4,7 +4,7 @@ from train import *
 from predict import *
 
 if __name__ == '__main__':
-    project_dir = '/panfs/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang'
+    project_dir = '/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang'
     data_dir = project_dir+os.sep+'data'
     result_dir = project_dir+os.sep+'results/scPanKD'
     parser = argparse.ArgumentParser()
@@ -32,7 +32,7 @@ if __name__ == '__main__':
             'prefix': 'train_', 'fs': 'F-test', 'num_features': 3000}
         train_args = argparse.Namespace(**train_input_dict)
         if train_args.cmd_choice == 'train_batch':
-            train_bath_MLP(train_args)
+            train_batch_MLP(train_args)
         if train_args.cmd_choice == 'train':
             train_MLP(train_args)
         # --- test configure

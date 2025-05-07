@@ -6,8 +6,10 @@ import pandas as pd
 import scanpy as sc
 import scipy
 import random
-import tensorflow as tf
-from tensorflow.keras.models import Model
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 
 import matplotlib.pyplot as plt
 plt.rcParams.update({'font.size': 18})
@@ -37,12 +39,13 @@ Celltype_COLUMN = "celltype"
 PredCelltype_COLUMN = "pred_celltype"
 ENTROPY_QUANTILE = 0.4  ## how many cells are used as second-round target
 
-GPU_list = tf.config.list_physical_devices('GPU')
-print("Num GPUs Available: %d" % len(GPU_list))
-if len(GPU_list) == 0:
-    os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+# Replace TensorFlow GPU configuration with PyTorch equivalent
+if torch.cuda.is_available():
+    device = torch.device("cuda:0")
+    print("CUDA is available. Using GPU.")
 else:
-    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+    device = torch.device("cpu")
+    print("CUDA is not available. Using CPU.")
 
 
 def _COOmtx_data_loader(mtx_prefix: str) -> A:
@@ -271,19 +274,6 @@ def _init_MLP(x_train, y_train, dims=[64, 16], seed=0):
     return mlp
 
 
-def _init_batch_MLP(x_train, batch_train, y_train, dims=[64, 16], seed=0):
-    '''Initialize MLP model based on input data
-    '''
-    mlp = batch_MLP(dims)
-    mlp.input_shape = (x_train.shape[1], )
-    mlp.n_batch = (batch_train.shape[1], )
-    mlp.n_classes = y_train.shape[1]
-    mlp.random_state = seed
-    mlp.init_batch_MLP_model()  ## init the model
-    return mlp
-
-
-
 def _select_confident_cells(adata, celltype_col):
     '''Select low entropy cells from each predicted cell type
     ---
@@ -332,37 +322,41 @@ def _oversample_cells(adata, celltype_col):
 
 def _run_distiller(x_train, y_train, student_model, teacher_model,
         epochs=30, alpha=0.1, temperature=3):
-    '''Train KD model
-    '''
+    '''Train KD model using PyTorch'''
     distiller = Distiller(student=student_model, teacher=teacher_model)
-    distiller.compile(
-        optimizer=tf.keras.optimizers.Adam(),
-        metrics=["accuracy"],
-        student_loss_fn=tf.keras.losses.CategoricalCrossentropy(from_logits=True),
-        distillation_loss_fn=tf.keras.losses.KLDivergence(),
-        alpha=alpha,
-        temperature=temperature,
-    )
-    distiller.fit(x_train, y_train, epochs=epochs,
-            validation_split=0.0, verbose=2)
+    optimizer = optim.Adam(student_model.parameters())
+    student_loss_fn = nn.CrossEntropyLoss()
+    distillation_loss_fn = nn.KLDivLoss(reduction="batchmean")
+
+    for epoch in range(epochs):
+        distiller.train()
+        optimizer.zero_grad()
+
+        # Forward pass
+        teacher_outputs = teacher_model(x_train).detach()
+        student_outputs = student_model(x_train)
+
+        # Compute losses
+        student_loss = student_loss_fn(student_outputs, y_train)
+        distillation_loss = distillation_loss_fn(
+            F.log_softmax(student_outputs / temperature, dim=1),
+            F.softmax(teacher_outputs / temperature, dim=1)
+        )
+        loss = alpha * student_loss + (1 - alpha) * distillation_loss
+
+        # Backward pass and optimization
+        loss.backward()
+        optimizer.step()
+
+        print(f"Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}")
+
     return distiller
 
 
 def _extract_backbone_mlp(model):
-    '''Extract backgone model from batch MLP
-    '''
-    input_1 = model.input[0]
-    dropout_layer = model.get_layer('dropout')(input_1)
-    dense_layer = model.get_layer('dense')(dropout_layer)
-    x = model.get_layer('activation')(dense_layer)
-    i = 0
-    while i < (len(MLP_DIMS)-1):
-        x = model.get_layer('dropout_'+str(i*2+1))(x)
-        x = model.get_layer('dense_'+str((i+1)*2))(x)
-        x = model.get_layer('activation_'+str(i+1))(x)
-        i = i + 1
-    x = model.get_layer('dense_'+str((i+1)*2))(x) # to classifier
-    backbone_model = Model(inputs=input_1, outputs=x)
+    '''Extract backbone model from batch MLP in PyTorch'''
+    layers = list(model.children())[:-1]  # Remove the last layer (classifier)
+    backbone_model = nn.Sequential(*layers)
     return backbone_model
 
 

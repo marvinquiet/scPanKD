@@ -142,7 +142,7 @@ def train_MLP(args):
         for idx, cat in enumerate(enc.categories_[0]):
             f.write('%d:%s\n' % (idx, cat))
 
-def train_bath_MLP(args):
+def train_batch_MLP(args):
     '''Train MLP model based on concatenated batch vector
         1. Load train data and metadata from each batch
         2. Concat the anndata, perform the feature selectio, log-norm, scale
@@ -164,8 +164,10 @@ def train_bath_MLP(args):
     y_train = enc.fit_transform(train_adata.obs[[_utils.Celltype_COLUMN]]).toarray()
     print("Cell type categories: ", enc.categories_[0])
     # initialize batch MLP model
-    mlp = _utils._init_batch_MLP(x_train, batch_mat, y_train, dims=MLP_DIMS,
-            seed=_utils.RANDOM_SEED)
+    mlp = batch_MLP(dims=MLP_DIMS, 
+            input_dim=x_train.shape[1],
+            n_batch=batch_mat.shape[1],
+            n_classes=y_train.shape[1])
     # fix node
     mlp.compile()
     mlp.fit(x_train, batch_mat, y_train)

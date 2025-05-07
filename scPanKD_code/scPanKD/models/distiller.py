@@ -1,27 +1,21 @@
 ## from Keras Knowledge Distillation: https://keras.io/examples/vision/knowledge_distillation/
 ## for predicting scATAC-seq using another scATAC-seq
-import tensorflow as tf
-from tensorflow import keras
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-class Distiller(keras.Model):
+class Distiller(nn.Module):
     def __init__(self, student, teacher):
         super(Distiller, self).__init__()
         self.teacher = teacher
         self.student = student
-    def compile(
-        self,
-        optimizer,
-        metrics,
-        student_loss_fn,
-        distillation_loss_fn,
-        alpha=0.1,
-        temperature=3,
-    ):
-        """ Configure the distiller.
+
+    def compile(self, optimizer, student_loss_fn, distillation_loss_fn, alpha=0.1, temperature=3):
+        """
+        Configure the distiller.
 
         Args:
-            optimizer: Keras optimizer for the student weights
-            metrics: Keras metrics for evaluation
+            optimizer: PyTorch optimizer for the student weights
             student_loss_fn: Loss function of difference between student
                 predictions and ground-truth
             distillation_loss_fn: Loss function of difference between soft
@@ -30,63 +24,48 @@ class Distiller(keras.Model):
             temperature: Temperature for softening probability distributions.
                 Larger temperature gives softer distributions.
         """
-        super(Distiller, self).compile(optimizer=optimizer, metrics=metrics)
+        self.optimizer = optimizer
         self.student_loss_fn = student_loss_fn
         self.distillation_loss_fn = distillation_loss_fn
         self.alpha = alpha
         self.temperature = temperature
 
-    def train_step(self, data):
-        # Unpack data
-        x, y = data
-
+    def train_step(self, x, y):
         # Forward pass of teacher
-        teacher_predictions = self.teacher(x, training=False)
+        with torch.no_grad():
+            teacher_predictions = self.teacher(x)
 
-        with tf.GradientTape() as tape:
-            # Forward pass of student
-            student_predictions = self.student(x, training=True)
+        # Forward pass of student
+        student_predictions = self.student(x)
 
-            # Compute losses
-            student_loss = self.student_loss_fn(y, student_predictions)
-            distillation_loss = self.distillation_loss_fn(
-                tf.nn.softmax(teacher_predictions / self.temperature, axis=1),
-                tf.nn.softmax(student_predictions / self.temperature, axis=1),
-            )
-            loss = self.alpha * student_loss + (1 - self.alpha) * distillation_loss
-
-        # Compute gradients
-        trainable_vars = self.student.trainable_variables
-        gradients = tape.gradient(loss, trainable_vars)
-
-        # Update weights
-        self.optimizer.apply_gradients(zip(gradients, trainable_vars))
-
-        # Update the metrics configured in `compile()`.
-        self.compiled_metrics.update_state(y, student_predictions)
-
-        # Return a dict of performance
-        results = {m.name: m.result() for m in self.metrics}
-        results.update(
-            {"student_loss": student_loss, "distillation_loss": distillation_loss}
+        # Compute losses
+        student_loss = self.student_loss_fn(student_predictions, y)
+        distillation_loss = self.distillation_loss_fn(
+            F.softmax(teacher_predictions / self.temperature, dim=1),
+            F.softmax(student_predictions / self.temperature, dim=1),
         )
-        return results
+        loss = self.alpha * student_loss + (1 - self.alpha) * distillation_loss
 
-    def test_step(self, data):
-        # Unpack the data
-        x, y = data
+        # Backward pass and optimization
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
+        return {
+            "student_loss": student_loss.item(),
+            "distillation_loss": distillation_loss.item(),
+            "total_loss": loss.item()
+        }
+
+    def test_step(self, x, y):
         # Compute predictions
-        y_prediction = self.student(x, training=False)
+        with torch.no_grad():
+            student_predictions = self.student(x)
 
         # Calculate the loss
-        student_loss = self.student_loss_fn(y, y_prediction)
+        student_loss = self.student_loss_fn(student_predictions, y)
 
-        # Update the metrics.
-        self.compiled_metrics.update_state(y, y_prediction)
-
-        # Return a dict of performance
-        results = {m.name: m.result() for m in self.metrics}
-        results.update({"student_loss": student_loss})
-        return results
+        return {
+            "student_loss": student_loss.item()
+        }
 

@@ -3,7 +3,8 @@ Functions related to predict cell types
 '''
 import os, sys 
 
-import tensorflow as tf
+import torch
+import torch.nn.functional as F
 import numpy as np
 import pandas as pd
 
@@ -15,12 +16,14 @@ from utils import _utils
 #import logging
 #logger = logging.getLogger(__name__)
 
+from torch import load as load_model
+
 def predict(args):
-    model = tf.keras.models.load_model(args.trained_model)
+    model = load_model(args.trained_model)
     feature_file = args.trained_model+os.sep+'features.txt'
     encoder_file = args.trained_model+os.sep+'onehot_encoder.txt'
     if not os.path.exists(feature_file) or not os.path.exists(encoder_file):
-        sys.exit("Feature file or encoder mapping does not exist! Please check your tained model was trained successfully.")
+        sys.exit("Feature file or encoder mapping does not exist! Please check your trained model was trained successfully.")
 
     features = pd.read_csv(feature_file, sep='\t', header=0, index_col=0)
     encoders = {}
@@ -69,20 +72,10 @@ def predict(args):
         test_adata = test_adata[:, feature_idx]
     print("Data shape after processing: %d cells X %d genes"  % (test_adata.shape[0], test_adata.shape[1]))
 
-    #if test_adata.shape[0] >= 1000:
-    #    ## center scale data by test data -> using feature information from test data and do two-step
-    #    test_adata = _utils._scale_data(test_adata)
-    #    test_data_mat = _utils._extract_adata(test_adata)
-    #else:
-    #    ## scale data by train data mu/std
-    #    test_data_mat = _utils._extract_adata(test_adata)
-    #    test_adata.var['mean'] = np.mean(test_data_mat, axis=0).reshape(-1, 1)
-    #    test_adata.var['std'] = np.std(test_data_mat, axis=0).reshape(-1, 1)
-    #    test_data_mat = (test_data_mat - np.array(features['mean']))/np.array(features['std'])
     test_adata = _utils._scale_data(test_adata)
     test_data_mat = _utils._extract_adata(test_adata)
 
-    y_pred = tf.nn.softmax(model.predict(test_data_mat)).numpy()
+    y_pred = F.softmax(model(torch.tensor(test_data_mat, dtype=torch.float32)), dim=1).detach().numpy()
     pred_celltypes = _utils._prob_to_label(y_pred, encoders)
     test_adata.obs[_utils.PredCelltype_COLUMN] = pred_celltypes
 
@@ -113,7 +106,7 @@ def predict(args):
                     encoders=encoders)
             x_tgt_test = _utils._extract_adata(test_tgt_adata)
 
-            ## teahcer/studenmt model on original celltype label
+            ## teacher/student model on original celltype label
             teacher = _utils._init_MLP(x_tgt_train, y_tgt_train, dims=_utils.Teacher_DIMS,
                     seed=_utils.RANDOM_SEED)
             teacher.compile()
@@ -123,9 +116,9 @@ def predict(args):
                     seed=_utils.RANDOM_SEED)
             # Initialize and compile distiller
             distiller = _utils._run_distiller(x_tgt_train, y_tgt_train, 
-                    student_model=student.model,
-                    teacher_model=teacher.model)
-            y_pred_tgt = tf.nn.softmax(distiller.student.predict(x_tgt_test)).numpy()
+                    student_model=student,
+                    teacher_model=teacher)
+            y_pred_tgt = F.softmax(distiller.student(torch.tensor(x_tgt_test, dtype=torch.float32)), dim=1).detach().numpy()
 
             pred_celltypes = _utils._prob_to_label(y_pred_tgt, encoders)
             test_adata.obs.loc[high_entropy_cells, _utils.PredCelltype_COLUMN] = pred_celltypes

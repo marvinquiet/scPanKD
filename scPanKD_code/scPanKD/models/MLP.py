@@ -1,124 +1,122 @@
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import Sequential
-from tensorflow.keras.layers import Dense, Dropout, Activation
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 
-class MLP(object):
-    def __init__(self, dims):
-        self.dims = dims
-        self.model = None
-        self.input_shape = None
-        self.n_classes = None
-        self.random_seed = 0 ## for reproducibility
+class MLP(nn.Module):
+    def __init__(self, dims, input_shape, n_classes, random_seed=1993):
+        super(MLP, self).__init__()
+        torch.manual_seed(random_seed)
+        self.layers = nn.ModuleList()
+        self.input_shape = input_shape
+        self.n_classes = n_classes
 
-    def init_MLP_model(self, dropout_rate=0.5):
-        dense_kernel_init = keras.initializers.TruncatedNormal(mean=0, stddev=0.1, seed=self.random_state) ## same as GEDFN
-        model = Sequential()
-        model.add(keras.Input(shape=self.input_shape))
-        for i in range(len(self.dims)):
-            model.add(Dropout(rate=dropout_rate, seed=self.random_state, name="dropout_"+str(i)))
-            model.add(Dense(self.dims[i], kernel_initializer=dense_kernel_init, name="dense_"+str(i)))
-            model.add(Activation('relu', name="act_"+str(i)))
-        model.add(Dense(self.n_classes, kernel_initializer=dense_kernel_init, name="dense_"+str(i+1)))
-        self.model = model
+        # Define layers
+        prev_dim = input_shape
+        for dim in dims:
+            self.layers.append(nn.Sequential(
+                nn.Dropout(p=0.5),
+                nn.Linear(prev_dim, dim),
+                nn.ReLU()
+            ))
+            prev_dim = dim
+        self.output_layer = nn.Linear(prev_dim, n_classes)
 
-    def fit(self, x_train, y_train, batch_size=16, max_epochs=100, 
-            sample_weight=None, class_weight=None):
-        ## add callback with 5 steps no improvement
-        #callback = keras.callbacks.EarlyStopping(monitor='loss', patience=5)
-        self.model.fit(x_train, y_train, epochs=max_epochs, batch_size=batch_size, 
-                validation_split=0.0, 
-                #callbacks=[callback], 
-                verbose=2, 
-                sample_weight=sample_weight, class_weight=class_weight) # without cross validation
-
-    def compile(self, optimizer='adam'):
-        if optimizer == 'adam':
-            lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-                            initial_learning_rate=1e-4,
-                            decay_steps=1000,
-                            decay_rate=0.95, 
-                            staircase=True)
-            optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-        self.model.compile(
-                loss=keras.losses.CategoricalCrossentropy(from_logits=True),
-                metrics=["accuracy"], ## show training accuracy,
-                optimizer=optimizer)
-
-    def predict(self, x_test):
-        ## with softmax
-        x_pred = tf.nn.softmax(self.model.predict(x_test)).numpy()
-        return x_pred
-
-
-class batch_MLP(object):
-    def __init__(self, dims):
-        self.dims = dims
-        self.model = None
-        self.input_shape = None
-        self.n_batch = None
-        self.n_classes = None
-        self.random_seed = 0 ## for reproducibility
-
-    def init_batch_MLP_model(self, dropout_rate=0.5):
-        dense_kernel_init = keras.initializers.TruncatedNormal(mean=0, stddev=0.1, seed=self.random_state) ## same as GEDFN
-
-        inputs = keras.Input(shape=(self.input_shape))
-        batch_inputs = keras.Input(shape=(self.n_batch))
-        x = Dropout(rate=dropout_rate, seed=self.random_state)(inputs)
-        x = Dense(self.dims[0], kernel_initializer=dense_kernel_init)(x)
-        x = Activation('relu')(x)
-        batch_x = Dense(self.dims[0], kernel_initializer=dense_kernel_init)(batch_inputs)
-        combined = tf.add(x, batch_x)
-        for i in range(len(self.dims)-1):
-            combined = Dropout(rate=dropout_rate, seed=self.random_state)(combined)
-            combined = Dense(self.dims[i+1], kernel_initializer=dense_kernel_init)(combined)
-            combined = Activation('relu')(combined)
-            batch_combined = Dense(self.dims[i+1], kernel_initializer=dense_kernel_init)(batch_inputs)
-            combined = tf.add(combined, batch_combined)
-        output = Dense(self.n_classes, kernel_initializer=dense_kernel_init)(combined)
-        model = keras.Model(inputs=[inputs, batch_inputs], outputs=output)
-        self.model = model
-
-    def fit(self, x_train, b_train, y_train, batch_size=16, max_epochs=100, 
-            sample_weight=None, class_weight=None):
-        ## add callback with 5 steps no improvement
-        #callback = keras.callbacks.EarlyStopping(monitor='loss', patience=5)
-        self.model.fit([x_train, b_train], y_train, epochs=max_epochs, batch_size=batch_size, 
-                validation_split=0.0, 
-                #callbacks=[callback], 
-                verbose=2, 
-                sample_weight=sample_weight, class_weight=class_weight) # without cross validation
-
-    def compile(self, optimizer='adam'):
-        if optimizer == 'adam':
-            lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-                            initial_learning_rate=1e-4,
-                            decay_steps=1000,
-                            decay_rate=0.95, 
-                            staircase=True)
-            optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
-        self.model.compile(
-                loss=keras.losses.CategoricalCrossentropy(from_logits=True),
-                metrics=["accuracy"], ## show training accuracy,
-                optimizer=optimizer)
-
-    def predict(self, x_test):
-        # extract certain layers out
-        sub_layers_index = [2, 4, 8, 10]
-        included_layers = [self.model.layers[idx] for idx in sub_layers_index]
-
-        inputs = keras.Input(shape=(self.input_shape))
-        x = inputs
-        for layer in included_layers:
+    def forward(self, x):
+        for layer in self.layers:
             x = layer(x)
-        output = Dense(self.n_classes, kernel_initializer=dense_kernel_init)(x)
-        pred_model = keras.Model(inputs=inputs, outputs=output)
-        weights_idx = [0, 1, 4, 5, 8, 9]
-        original_model_weights = self.model.get_weights()
-        pred_model_weights = [original_model_weights[idx] for idx in weights_idx]
-        pred_model.set_weights(pred_model_weights)
-        ## with softmax
-        x_pred = tf.nn.softmax(pred_model.predict(x_test)).numpy()
-        return x_pred
+        x = self.output_layer(x)
+        return x
 
+    def compile(self, optimizer='adamW', learning_rate=1e-4):
+        if optimizer == 'adam':
+            self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=learning_rate)
+        if optimizer == 'adamW':
+            self.optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, self.parameters()), lr=learning_rate)
+        self.criterion = nn.CrossEntropyLoss()
+
+    def fit(self, x_train, y_train, batch_size=16, max_epochs=100):
+        dataset = torch.utils.data.TensorDataset(x_train, y_train)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        for epoch in range(max_epochs):
+            self.train()
+            for batch_x, batch_y in dataloader:
+                self.optimizer.zero_grad()
+                outputs = self.forward(batch_x)
+                loss = self.criterion(outputs, batch_y)
+                loss.backward()
+                self.optimizer.step()
+
+    def predict(self, x_test):
+        self.eval()
+        with torch.no_grad():
+            outputs = self.forward(x_test)
+            probabilities = F.softmax(outputs, dim=1)
+        return probabilities
+
+
+class batch_MLP(nn.Module):
+    def __init__(self, dims, input_dim, n_batch, n_classes, dropout=0.5, random_seed=1993):
+        super(batch_MLP, self).__init__()
+        torch.manual_seed(random_seed)
+        self.dims = dims
+        self.input_dim = input_dim
+        self.n_batch = n_batch
+        self.n_classes = n_classes
+
+        layers = []
+        batch_layers = []
+        # Input layers
+        layers.append(nn.Sequential(
+            nn.Dropout(p=dropout_rate),
+            nn.Linear(self.input_shape, self.dims[0]),
+            nn.ReLU()
+        ))
+        batch_layers.append(nn.Linear(self.n_batch, self.dims[0]))
+        # Hidden layers
+        for i in range(len(self.dims) - 1):
+            layers.append(nn.Sequential(
+                nn.Dropout(p=dropout_rate),
+                nn.Linear(self.dims[i], self.dims[i + 1]),
+                nn.ReLU()
+            ))
+            batch_layers.append(nn.Linear(self.n_batch, self.dims[i + 1]))
+
+        # Output layer
+        layers.append(nn.Linear(self.dims[-1], self.n_classes))
+        self.layers = nn.ModuleList(layers)
+        self.batch_layers = nn.ModuleList(batch_layers)
+
+    def forward(self, x, batch_x):
+        for i in range(len(self.layers) - 1):
+            x = self.layers[i](x)
+            batch_x_proj = self.batch_layers[i](batch_x)
+            x = x + batch_x_proj
+        x = self.layers[-1](x)
+        return x
+
+    def compile(self, optimizer='adamW', learning_rate=1e-4):
+        if optimizer == 'adam':
+            self.optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, self.parameters()), lr=learning_rate)
+        if optimizer == 'adamW':
+            self.optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, self.parameters()), lr=learning_rate)
+        self.criterion = nn.CrossEntropyLoss()
+
+    def fit(self, x_train, b_train, y_train, batch_size=16, max_epochs=100):
+        dataset = torch.utils.data.TensorDataset(x_train, b_train, y_train)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+
+        for epoch in range(max_epochs):
+            self.train()
+            for batch_x, batch_b, batch_y in dataloader:
+                self.optimizer.zero_grad()
+                outputs = self.forward(batch_x, batch_b)
+                loss = self.criterion(outputs, batch_y)
+                loss.backward()
+                self.optimizer.step()
+
+    def predict(self, x_test, b_test):
+        self.eval()
+        with torch.no_grad():
+            outputs = self.forward(x_test, b_test)
+            probabilities = F.softmax(outputs, dim=1)
+        return probabilities
