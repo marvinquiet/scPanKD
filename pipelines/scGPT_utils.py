@@ -15,9 +15,10 @@ import anndata
 import pandas as pd
 from scipy.sparse import issparse
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 # compute accuracy, precision, recall, f1
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, adjusted_rand_score, confusion_matrix
 
 import wandb
 import torch
@@ -41,9 +42,9 @@ from scgpt import SubsetsBatchSampler
 from scgpt.utils import set_seed, category_str2int, eval_scib_metrics
 logger = scg.logger # set logger
 
-
 # --- load data ---
 def load_mtx(mtx_prefix):
+    print(f"Loading data from {mtx_prefix}")
     adata = anndata.read_mtx(mtx_prefix+'.mtx.gz').T
     genes = pd.read_csv(mtx_prefix+'_genes.tsv', header=None, sep='\t')
     adata.var["genes"] = genes[0].values
@@ -70,12 +71,11 @@ MVC = False # Masked value prediction for cell embedding
 ECS = False # Elastic cell similarity objective
 DAB = False  # Domain adaptation by reverse backpropagation, set to 2 for separate optimizer
 INPUT_BATCH_LABELS = False  # TODO: have these help MLM and MVC, while not to classifier
-
+device = torch.device('cuda:2' if torch.cuda.is_available() else "cpu")
 
 def run_scGPT_finetune(config, train_adata, test_adata, scGPT_result_dir,
-                       train_celltype_col='curated_celltype', device='cuda:2'):
+                       train_celltype_col='curated_celltype'):
     os.environ["KMP_WARNINGS"] = "off"
-    device = torch.device(device if torch.cuda.is_available() else "cpu")
     set_seed(config.seed)
     # settings for input and preprocessing
     pad_token = "<pad>"
@@ -354,6 +354,7 @@ def run_scGPT_finetune(config, train_adata, test_adata, scGPT_result_dir,
     model.to(device)
     wandb.watch(model)
 
+    discriminator = None
     if ADV:
         discriminator = AdversarialDiscriminator(
             d_model=embsize,
@@ -442,7 +443,6 @@ def run_scGPT_finetune(config, train_adata, test_adata, scGPT_result_dir,
             loader=valid_loader,
             epoch=epoch,
             config=config,
-            device=device,
             vocab=vocab,
             pad_token=pad_token,
             do_sample_in_train=do_sample_in_train,
@@ -466,6 +466,7 @@ def run_scGPT_finetune(config, train_adata, test_adata, scGPT_result_dir,
         if ADV:
             scheduler_D.step()
             scheduler_E.step()
+
     predictions, labels, results = test(best_model, adata_test,
                                         input_layer_key=input_layer_key,
                                         gene_ids=gene_ids,
@@ -477,6 +478,10 @@ def run_scGPT_finetune(config, train_adata, test_adata, scGPT_result_dir,
                                         mask_ratio=mask_ratio,
                                         mask_value=mask_value,
                                         eval_batch_size=eval_batch_size,
+                                        epoch=epoch,
+                                        config=config,
+                                        do_sample_in_train=do_sample_in_train,
+                                        dab_weight=dab_weight
                                         )
     test_adata_raw.obs["predictions"] = [id2type[p] for p in predictions]
 
@@ -511,6 +516,23 @@ def run_scGPT_finetune(config, train_adata, test_adata, scGPT_result_dir,
         caption=f"predictions macro f1 {results['test/macro_f1']:.3f}",
     )
     wandb.log(results)
+
+    celltypes = list(celltypes)
+    for i in set([id2type[p] for p in predictions]):
+        if i not in celltypes:
+            celltypes.remove(i)
+    cm = confusion_matrix(labels, predictions)
+    cm = cm.astype("float") / cm.sum(axis=1)[:, np.newaxis]
+    cm = pd.DataFrame(cm, index=celltypes[:cm.shape[0]], columns=celltypes[:cm.shape[1]])
+    plt.figure(figsize=(10, 10))
+    sns.heatmap(cm, annot=True, fmt=".1f", cmap="Blues")
+    plt.savefig(save_dir / "confusion_matrix.png", dpi=300)
+
+    results["test/confusion_matrix"] = wandb.Image(
+        str(save_dir / "confusion_matrix.png"),
+        caption=f"confusion matrix",
+    )
+    torch.save(best_model.state_dict(), save_dir / "model.pt")
 
 # dataset
 class SeqDataset(Dataset):
@@ -683,7 +705,6 @@ def prepare_data(sort_seq_batch=False,
 
 
 def train(model: nn.Module, loader: DataLoader,
-          device=None,
           epoch=None,
           optimizer=None,
           scheduler=None,
@@ -926,7 +947,6 @@ def train(model: nn.Module, loader: DataLoader,
 def evaluate(model: nn.Module, loader: DataLoader, return_raw: bool = False,
                 epoch=None,
                 config=None,
-                device=None,
                 vocab=None,
                 pad_token=None,
                 do_sample_in_train=None,
@@ -1002,6 +1022,10 @@ def test(model: nn.Module, adata: DataLoader,
         mask_ratio=None,
         mask_value=None,
         eval_batch_size=None,
+        epoch=None,
+        config=None,
+        do_sample_in_train=None,
+        dab_weight=None
          ) -> float:
     all_counts = (
         adata.layers[input_layer_key].toarray()
@@ -1048,20 +1072,28 @@ def test(model: nn.Module, adata: DataLoader,
         model,
         loader=test_loader,
         return_raw=True,
+        epoch=epoch,
+        config=config,
+        vocab=vocab,
+        pad_token=pad_token,
+        do_sample_in_train=do_sample_in_train,
+        dab_weight=dab_weight
     )
 
+    ARI = adjusted_rand_score(celltypes_labels, predictions)
     accuracy = accuracy_score(celltypes_labels, predictions)
     precision = precision_score(celltypes_labels, predictions, average="macro")
     recall = recall_score(celltypes_labels, predictions, average="macro")
     macro_f1 = f1_score(celltypes_labels, predictions, average="macro")
     logger.info(
         f"Accuracy: {accuracy:.3f}, Precision: {precision:.3f}, Recall: {recall:.3f}, "
-        f"Macro F1: {macro_f1:.3f}"
+        f"Macro F1: {macro_f1:.3f}, ARI: {ARI:.3f}", 
     )
     results = {
         "test/accuracy": accuracy,
         "test/precision": precision,
         "test/recall": recall,
         "test/macro_f1": macro_f1,
+        "test/ARI": ARI
     }
     return predictions, celltypes_labels, results

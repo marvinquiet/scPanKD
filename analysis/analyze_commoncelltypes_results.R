@@ -1,15 +1,16 @@
-# conda activate Seurat
-project_dir = "/panfs/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang"
+# conda activate ~/envs/SpaDOT
+.libPaths("/net/mulan/home/wenjinma/Rlib")
+project_dir = "/net/mulan/home/wenjinma/projects/scPanKD"
 setwd(project_dir)
 
 library(ggpubr)
 library(ggplot2)
 library(dplyr)
-source("/panfs/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/pipelines/calculate_metrics.R")
+source("/net/mulan/home/wenjinma/projects/scPanKD/pipelines/calculate_metrics.R")
 
 experiment = "ProjecTILs_each_CD8_to_HNSC_CD8"
 studies = c('EGAS00001004809', 'GSE123814', 'GSE139555', 'GSE159251', 'GSE176021', 'GSE179994', 'GSE180268', 'PRJNA705464')
-methods = c('Seurat', 'ProjecTIL', 'Cellcano', 'CellTypist')
+methods = c('Cellcano', 'Seurat', 'ProjecTIL', 'CellTypist', 'scType')
 metrics = c('Acc', 'macroF1', 'ARI')
 
 metadata = read.csv(file.path(project_dir, 'data', 'HNSC_CD8T', 'HNSC_CD8T_metadata.csv'),

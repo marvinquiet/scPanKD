@@ -1,4 +1,6 @@
-project_dir = "/panfs/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang"
+# conda activate ~/envs/SpaDOT
+.libPaths("/net/mulan/home/wenjinma/Rlib")
+project_dir = "/net/mulan/home/wenjinma/projects/scPanKD"
 setwd(project_dir)
 
 library(aricode)
@@ -6,15 +8,15 @@ library(networkD3)
 library(dplyr)
 library(ggplot2)
 library(Matrix)
-source("/panfs/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/pipelines/calculate_metrics.R")
+source("/net/mulan/home/wenjinma/projects/scPanKD/pipelines/calculate_metrics.R")
 
 
-data_dir = file.path(project_dir, 'data')
+data_dir = '/net/zootopia/disk1/wenjinma/data/scPanKD_data'
 # --- ProjecTILs_CD8_multibatch_to_Chu_CD8, Exp7
 true_df = read.csv(file.path(data_dir, 'Chu_pancancer_CD8T', 'test_20_pancanT_metadata.csv'), header=T, row.names=1)
-scPanKD_pred_df = read.csv('/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/scPanKD/ProjecTILs_CD8_multibatch_to_Chu_CD8/scPanKD_predicted_celltypes.csv', header=T, row.names=1)
-Seurat_multibatch_pred_df = read.csv('/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Seurat/ProjecTILs_CD8_multibatch_to_Chu_CD8T/Seurat_predicted_results.csv', header=T, row.names=1)
-Seurat_pred_df = read.csv('/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Seurat/ProjecTILs_CD8_to_Chu_CD8T/Seurat_predicted_results.csv', header=T, row.names=1)
+scPanKD_pred_df = read.csv(file.path(project_dir, '/results/scPanKD/ProjecTILs_CD8_multibatch_to_Chu_CD8/scPanKD_predicted_celltypes.csv'), header=T, row.names=1)
+Seurat_multibatch_pred_df = read.csv(file.path(project_dir, 'results/Seurat/ProjecTILs_CD8_multibatch_to_Chu_CD8T/Seurat_predicted_results.csv'), header=T, row.names=1)
+Seurat_pred_df = read.csv(file.path(project_dir, 'results/Seurat/ProjecTILs_CD8_to_Chu_CD8T/Seurat_predicted_results.csv'), header=T, row.names=1)
 
 explore_true_vs_pred = function(true_df, pred_df, pred_col) {
     cat('Cell names are same:', all(rownames(true_df)==rownames(pred_df)), '\n')
@@ -37,9 +39,9 @@ explore_true_vs_pred(true_df, Seurat_pred_df, pred_col='predicted.id')
 
 # --- ProjecTILs_CD8_to_HNSC_CD8, Exp5
 true_df = read.csv(file.path(data_dir, 'HNSC_CD8T', 'HNSC_CD8T_metadata.csv'), header=T, row.names=1)
-scPanKD_pred_df = read.csv('/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/scPanKD/ProjecTILs_CD8_multibatch_to_HNSC_CD8/scPanKD_predicted_celltypes.csv', header=T, row.names=1)
-Seurat_multibatch_pred_df = read.csv('/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Seurat/ProjecTILs_CD8_multibatch_to_HNSC_CD8/Seurat_predicted_results.csv', header=T, row.names=1)
-Seurat_pred_df = read.csv('/projects/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang/results/Seurat/ProjecTILs_CD8_to_HNSC_CD8/Seurat_predicted_results.csv', header=T, row.names=1)
+scPanKD_pred_df = read.csv(file.path(project_dir, 'results/scPanKD/ProjecTILs_CD8_multibatch_to_HNSC_CD8/scPanKD_predicted_celltypes.csv'), header=T, row.names=1)
+Seurat_multibatch_pred_df = read.csv(file.path(project_dir, 'results/Seurat/ProjecTILs_CD8_multibatch_to_HNSC_CD8/Seurat_predicted_results.csv'), header=T, row.names=1)
+Seurat_pred_df = read.csv(file.path(project_dir, 'results/Seurat/ProjecTILs_CD8_to_HNSC_CD8/Seurat_predicted_results.csv'), header=T, row.names=1)
 
 explore_true_vs_pred = function(true_df, pred_df, pred_col) {
     cat('Cell names are same:', all(rownames(true_df)==rownames(pred_df)), '\n')
@@ -64,5 +66,3 @@ explore_true_vs_pred(true_df, scPanKD_pred_df, pred_col='pred_celltype')
 explore_true_vs_pred(true_df, scPanKD_pred_df, pred_col='firstround_pred_celltype')
 explore_true_vs_pred(true_df, Seurat_multibatch_pred_df, pred_col='predicted.id')
 explore_true_vs_pred(true_df, Seurat_pred_df, pred_col='predicted.id')
-
-

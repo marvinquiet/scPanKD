@@ -52,4 +52,85 @@ if experiment == 'Chu_CD4T_validation':
     test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))  
     wandb_config = scGPT_utils.init_wandb_config(scGPT_model_dir)
     scGPT_utils.run_scGPT_finetune(wandb_config, train_adata, test_adata, scGPT_result_dir,
-                                   train_celltype_col='curated_celltype', device='cuda:2')
+                                   train_celltype_col='curated_celltype')
+
+if experiment == 'Chu_CD8T_validation':
+    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
+    train_adata = scGPT_utils.load_mtx(Chu_CD8T_dir+os.sep+'train_80_pancanT')
+    train_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'train_80_pancanT_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    test_adata = scGPT_utils.load_mtx(Chu_CD8T_dir+os.sep+'test_20_pancanT')
+    test_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'test_20_pancanT_metadata.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))  
+    wandb_config = scGPT_utils.init_wandb_config(scGPT_model_dir)
+    test_adata.obs['celltype'] = test_adata.obs['curated_celltype'].values
+    scGPT_utils.run_scGPT_finetune(wandb_config, train_adata, test_adata, scGPT_result_dir,
+                                   train_celltype_col='celltype')
+    
+if experiment == 'Zheng_CD4_to_Chu_CD4':
+    Zheng_CD4_dir = data_dir+os.sep+'Zheng_CD4T'
+    train_adata = scGPT_utils.load_mtx(Zheng_CD4_dir+os.sep+'Zheng_CD4T')
+    train_metadata = pd.read_csv(Zheng_CD4_dir+os.sep+'Zheng_CD4T_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    Chu_CD4T_dir = data_dir+os.sep+'Chu_pancancer_CD4T'
+    test_adata = scGPT_utils.load_mtx(Chu_CD4T_dir+os.sep+'test_20_pancanT')
+    test_metadata = pd.read_csv(Chu_CD4T_dir+os.sep+'test_20_pancanT_metadata.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    wandb_config = scGPT_utils.init_wandb_config(scGPT_model_dir)
+    scGPT_utils.run_scGPT_finetune(wandb_config, train_adata, test_adata, scGPT_result_dir,
+                                   train_celltype_col='celltype')
+    
+if experiment == 'GSE179994_CD8_to_HNSC_CD8':
+    GSE179994_CD8_dir = data_dir+os.sep+'GSE179994_CD8T'
+    train_adata = scGPT_utils.load_mtx(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref')
+    train_metadata = pd.read_csv(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    HNSC_CD8_dir = data_dir+os.sep+'HNSC_CD8T'
+    test_adata = scGPT_utils.load_mtx(HNSC_CD8_dir+os.sep+'HNSC_CD8T')
+    test_metadata = pd.read_csv(HNSC_CD8_dir+os.sep+'HNSC_CD8T_metadata_curated.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    wandb_config = scGPT_utils.init_wandb_config(scGPT_model_dir)
+    scGPT_utils.run_scGPT_finetune(wandb_config, train_adata, test_adata, scGPT_result_dir,
+                                   train_celltype_col='celltype')
+
+if experiment == 'ProjecTILs_CD8_to_HNSC_CD8':
+    ProjecTILs_CD8_dir = data_dir+os.sep+'ProjecTILs_CD8T'
+    train_adata = scGPT_utils.load_mtx(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T')
+    train_metadata = pd.read_csv(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    HNSC_CD8_dir = data_dir+os.sep+'HNSC_CD8T'
+    test_adata = scGPT_utils.load_mtx(HNSC_CD8_dir+os.sep+'HNSC_CD8T')
+    test_metadata = pd.read_csv(HNSC_CD8_dir+os.sep+'HNSC_CD8T_metadata_curated.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    wandb_config = scGPT_utils.init_wandb_config(scGPT_model_dir)
+    scGPT_utils.run_scGPT_finetune(wandb_config, train_adata, test_adata, scGPT_result_dir,
+                                   train_celltype_col='celltype')
+
+
+if experiment == 'GSE179994_CD8_to_Chu_CD8T':
+    GSE179994_CD8_dir = data_dir+os.sep+'GSE179994_CD8T'
+    train_adata = scGPT_utils.load_mtx(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref')
+    train_metadata = pd.read_csv(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
+    test_adata = scGPT_utils.load_mtx(Chu_CD8T_dir+os.sep+'test_20_pancanT')
+    test_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'test_20_pancanT_metadata.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    test_adata.obs['celltype'] = test_adata.obs['curated_celltype'].values
+    wandb_config = scGPT_utils.init_wandb_config(scGPT_model_dir)
+    scGPT_utils.run_scGPT_finetune(wandb_config, train_adata, test_adata, scGPT_result_dir,
+                                   train_celltype_col='celltype')   
+
+if experiment == 'ProjecTILs_CD8_to_Chu_CD8T':
+    ProjecTILs_CD8_dir = data_dir+os.sep+'ProjecTILs_CD8T'
+    train_adata = scGPT_utils.load_mtx(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T')
+    train_metadata = pd.read_csv(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
+    test_adata = scGPT_utils.load_mtx(Chu_CD8T_dir+os.sep+'test_20_pancanT')
+    test_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'test_20_pancanT_metadata.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    test_adata.obs['celltype'] = test_adata.obs['curated_celltype'].values
+    wandb_config = scGPT_utils.init_wandb_config(scGPT_model_dir)
+    scGPT_utils.run_scGPT_finetune(wandb_config, train_adata, test_adata, scGPT_result_dir,
+                                   train_celltype_col='celltype')
