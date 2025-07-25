@@ -1,5 +1,6 @@
-# conda activate Seurat
-project_dir = "/panfs/compbio/users/wma36/test_Cellcano_XuefengWang/test_Cellcano_XuefengWang"
+# conda activate ~/envs/spatialATAC
+.libPaths("/net/mulan/home/wenjinma/Rlib")
+project_dir = "/net/mulan/home/wenjinma/projects/scPanKD"
 setwd(project_dir)
 
 library(Seurat)
@@ -31,7 +32,7 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
     for (study in studies) {
         each_result_dir = file.path(Seurat_result_dir, study)
         dir.create(each_result_dir, showWarnings = FALSE)
-        res = load_Seurat_data_for_ProjecTIL_to_HNSC(project_dir, ref_study=study)
+        res = load_Seurat_data_for_ProjecTIL_to_HNSC(ref_study=study)
         predicted_test_obj = predict_Seurat(res$train_obj, res$test_obj)
         write.csv(predicted_test_obj@meta.data, file.path(each_result_dir, 'Seurat_predicted_results.csv'), quote=F)
         # compute results
@@ -43,7 +44,7 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
     }
 } else { 
     # --- run other experiments
-    res = load_Seurat_data(opt$experiment, project_dir)
+    res = load_Seurat_data(opt$experiment)
     # if multibatch, then plot integrated plots
     if (opt$experiment == 'Chu_CD4T_multibatch_validation' || opt$experiment == 'Chu_CD8T_multibatch_validation') {
         train_obj = res$train_obj

@@ -3,7 +3,7 @@
 #SBATCH --job-name=GeneFormer_pipeline
 #SBATCH --nodes=1
 #SBATCH --partition=mulan-gpu
-#SBATCH --output=GeneFormer_pipeline.out
+#SBATCH --output=GeneFormer_pipeline_ProjectTIL_to_Chu.out
 
 source ~/.bashrc
 conda activate /net/zootopia/disk1/wenjinma/envs/GeneFormer
@@ -30,13 +30,13 @@ result_dir="/net/mulan/home/wenjinma/projects/scPanKD/results/GeneFormer"
 #         --prefix Cellcano_predicted_
 # done
 
-python run_GeneFormer_pipeline.py --experiment Chu_CD4T_validation
-python run_GeneFormer_pipeline.py --experiment Chu_CD8T_validation
-python run_GeneFormer_pipeline.py --experiment Zheng_CD4_to_Chu_CD4
-python run_GeneFormer_pipeline.py --experiment GSE179994_CD8_to_HNSC_CD8
-python run_GeneFormer_pipeline.py --experiment ProjecTILs_CD8_to_HNSC_CD8
-python run_GeneFormer_pipeline.py --experiment GSE179994_CD8_to_Chu_CD8T
-python run_CellPLM_pipeline.py --experiment ProjecTILs_CD8_to_Chu_CD8T
+#python run_GeneFormer_pipeline.py --experiment Chu_CD4T_validation
+#python run_GeneFormer_pipeline.py --experiment Chu_CD8T_validation
+#python run_GeneFormer_pipeline.py --experiment Zheng_CD4_to_Chu_CD4
+#python run_GeneFormer_pipeline.py --experiment GSE179994_CD8_to_HNSC_CD8
+#python run_GeneFormer_pipeline.py --experiment ProjecTILs_CD8_to_HNSC_CD8
+#python run_GeneFormer_pipeline.py --experiment GSE179994_CD8_to_Chu_CD8T
+python run_GeneFormer_pipeline.py --experiment ProjecTILs_CD8_to_Chu_CD8T
 
 
 # === multibatch

@@ -199,7 +199,8 @@ test_adata_mapped.write_h5ad(GeneFormer_result_dir+os.sep+"GeneFormer_test_embed
 # --- visualize
 sc.pp.neighbors(train_adata_mapped, use_rep='X_GeneFormer')
 sc.tl.umap(train_adata_mapped)
-sc.pl.umap(train_adata_mapped, color=[celltype_col], palette='Paired')
+# sc.pl.umap(train_adata_mapped, color=[celltype_col], palette='Paired')
+sc.pl.umap(train_adata_mapped, color=[celltype_col, 'TissueType', 'CancerType'], palette='Paired')
 plt.savefig(GeneFormer_result_dir+os.sep+f'GeneFormer_train_embedding.png', bbox_inches='tight')
 plt.close()
 
