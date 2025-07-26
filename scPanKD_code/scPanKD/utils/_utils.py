@@ -166,7 +166,7 @@ def _select_feature(adata: A, model_config: dict) -> A:
         features.sort()
         adata = adata[:, features]
 
-    if model_config['fs'] == "seurat":
+    if model_config['fs'] == "seurat_v3":
         print("Use seurat in scanpy to select features.\n")
         sc.pp.highly_variable_genes(adata, 
                                     n_top_genes=model_config['num_features'], 

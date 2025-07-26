@@ -85,4 +85,3 @@ tgt_metadata = read.csv(file.path(project_dir, 'HNSC_CD8T_metadata.csv'), header
 pred_result = read.csv(file.path(project_dir, 'output', 'predict_HNSC_CD8celltypes.csv'), header=T, row.names=1)
 sum(tgt_metadata$Label == pred_result[rownames(tgt_metadata), 'pred_celltype']) / nrow(tgt_metadata)
 
-

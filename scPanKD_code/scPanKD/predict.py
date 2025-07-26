@@ -82,7 +82,10 @@ def predict(args, model, model_config):
 
     # --- visualize predicted features\
     metadata = pd.read_csv(args.input+'_metadata.csv', header=0, index_col=0)
-    test_adata.obs['true_label'] = metadata['curated_celltype'].values
+    if 'curated_celltype' in metadata.columns:
+        test_adata.obs['true_label'] = metadata['curated_celltype'].values
+    else:
+        test_adata.obs['true_label'] = metadata['celltype'].values
 
     y_pred_features = y_pred_features.detach().cpu().numpy()
     y_pred_features_adata = anndata.AnnData(X=y_pred_features, obs=test_adata.obs)

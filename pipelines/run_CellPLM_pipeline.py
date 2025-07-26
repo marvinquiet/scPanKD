@@ -19,7 +19,7 @@ from CellPLM.pipeline.cell_type_annotation import CellTypeAnnotationPipeline, Ce
 # import rapids_singlecell as rsc
 
 import matplotlib.pyplot as plt
-from sklearn.metrics import adjusted_rand_score
+from sklearn.metrics import accuracy_score, f1_score, adjusted_rand_score
 
 import data_utils
 
@@ -68,7 +68,7 @@ CellPLM_result_dir = result_dir+os.sep+experiment
 if not os.path.exists(CellPLM_result_dir):
     os.makedirs(CellPLM_result_dir)
 
-if experiment == 'Chu_CD4T_validation':
+if experiment == 'Chu_CD4_multibatch_validation':
     Chu_CD4T_dir = data_dir+os.sep+'Chu_pancancer_CD4T'
     train_adata = data_utils.load_mtx(Chu_CD4T_dir+os.sep+'train_80_pancanT')
     train_metadata = pd.read_csv(Chu_CD4T_dir+os.sep+'train_80_pancanT_metadata.csv', index_col=0)
@@ -78,7 +78,7 @@ if experiment == 'Chu_CD4T_validation':
     test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))  
     celltype_col = 'curated_celltype'
 
-if experiment == 'Chu_CD8T_validation':
+if experiment == 'Chu_CD8_multibatch_validation':
     Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
     train_adata = data_utils.load_mtx(Chu_CD8T_dir+os.sep+'train_80_pancanT')
     train_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'train_80_pancanT_metadata.csv', index_col=0)
@@ -89,10 +89,78 @@ if experiment == 'Chu_CD8T_validation':
     test_adata.obs['celltype'] = test_adata.obs['curated_celltype'].values
     celltype_col = 'celltype'
 
-if experiment == 'Zheng_CD4_to_Chu_CD4':
-    Zheng_CD4_dir = data_dir+os.sep+'Zheng_CD4T'
-    train_adata = data_utils.load_mtx(Zheng_CD4_dir+os.sep+'Zheng_CD4T')
-    train_metadata = pd.read_csv(Zheng_CD4_dir+os.sep+'Zheng_CD4T_metadata.csv', index_col=0)
+if experiment == 'ProjecTILs_CD8_multibatch_to_GSE179994_CD8':
+    ProjecTILs_CD8_dir = data_dir+os.sep+'ProjecTILs_CD8T'
+    train_adata = data_utils.load_mtx(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T')
+    train_metadata = pd.read_csv(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    GSE179994_CD8_dir = data_dir+os.sep+'GSE179994_CD8T'
+    test_adata = data_utils.load_mtx(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref')
+    test_metadata = pd.read_csv(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref_metadata.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    celltype_col = 'celltype'
+
+if experiment == 'Chu_CD8_multibatch_to_GSE179994_CD8':
+    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
+    train_adata = data_utils.load_mtx(Chu_CD8T_dir+os.sep+'train_80_pancanT')
+    train_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'train_80_pancanT_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    GSE179994_CD8_dir = data_dir+os.sep+'GSE179994_CD8T'
+    test_adata = data_utils.load_mtx(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref')
+    test_metadata = pd.read_csv(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref_metadata.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    celltype_col = 'celltype'
+
+if experiment == 'ProjecTILs_CD8_multibatch_to_HNSC_CD8':
+    ProjecTILs_CD8_dir = data_dir+os.sep+'ProjecTILs_CD8T'
+    train_adata = data_utils.load_mtx(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T')
+    train_metadata = pd.read_csv(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    HNSC_CD8_dir = data_dir+os.sep+'HNSC_CD8T'
+    test_adata = data_utils.load_mtx(HNSC_CD8_dir+os.sep+'HNSC_CD8T')
+    test_metadata = pd.read_csv(HNSC_CD8_dir+os.sep+'HNSC_CD8T_metadata_curated.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    celltype_col = 'celltype'
+
+if experiment == 'Chu_CD8_multibatch_to_HNSC_CD8':
+    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
+    train_adata = data_utils.load_mtx(Chu_CD8T_dir+os.sep+'train_80_pancanT')
+    train_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'train_80_pancanT_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    HNSC_CD8_dir = data_dir+os.sep+'HNSC_CD8T'
+    test_adata = data_utils.load_mtx(HNSC_CD8_dir+os.sep+'HNSC_CD8T')
+    test_metadata = pd.read_csv(HNSC_CD8_dir+os.sep+'HNSC_CD8T_metadata_curated.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    celltype_col = 'celltype'
+
+
+if experiment == 'ProjecTILs_CD8_multibatch_to_Chu_CD8':
+    ProjecTILs_CD8_dir = data_dir+os.sep+'ProjecTILs_CD8T'
+    train_adata = data_utils.load_mtx(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T')
+    train_metadata = pd.read_csv(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
+    test_adata = data_utils.load_mtx(Chu_CD8T_dir+os.sep+'test_20_pancanT')
+    test_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'test_20_pancanT_metadata.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    test_adata.obs['celltype'] = test_adata.obs['curated_celltype'].values
+    celltype_col = 'celltype'
+
+if experiment == 'Chu_CD8_multibatch_to_ProjecTILs_CD8':
+    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
+    train_adata = data_utils.load_mtx(Chu_CD8T_dir+os.sep+'train_80_pancanT')
+    train_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'train_80_pancanT_metadata.csv', index_col=0)
+    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x')) 
+    ProjecTILs_CD8_dir = data_dir+os.sep+'ProjecTILs_CD8T'
+    test_adata = data_utils.load_mtx(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T')
+    test_metadata = pd.read_csv(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T_metadata.csv', index_col=0)
+    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
+    celltype_col = 'celltype'
+
+if experiment == 'Zheng_CD4_multibatch_to_Chu_CD4':
+    Zheng_CD4T_dir = data_dir+os.sep+'Zheng_CD4T'
+    train_adata = data_utils.load_mtx(Zheng_CD4T_dir+os.sep+'Zheng_CD4T')
+    train_metadata = pd.read_csv(Zheng_CD4T_dir+os.sep+'Zheng_CD4T_metadata.csv', index_col=0)
     train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
     Chu_CD4T_dir = data_dir+os.sep+'Chu_pancancer_CD4T'
     test_adata = data_utils.load_mtx(Chu_CD4T_dir+os.sep+'test_20_pancanT')
@@ -100,50 +168,15 @@ if experiment == 'Zheng_CD4_to_Chu_CD4':
     test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
     celltype_col = 'celltype'
 
-if experiment == 'GSE179994_CD8_to_HNSC_CD8':
-    GSE179994_CD8_dir = data_dir+os.sep+'GSE179994_CD8T'
-    train_adata = data_utils.load_mtx(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref')
-    train_metadata = pd.read_csv(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref_metadata.csv', index_col=0)
+if experiment == 'Chu_CD4_multibatch_to_Zheng_CD4':
+    Chu_CD4T_dir = data_dir+os.sep+'Chu_pancancer_CD4T'
+    train_adata = data_utils.load_mtx(Chu_CD4T_dir+os.sep+'train_80_pancanT')
+    train_metadata = pd.read_csv(Chu_CD4T_dir+os.sep+'train_80_pancanT_metadata.csv', index_col=0)
     train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
-    HNSC_CD8_dir = data_dir+os.sep+'HNSC_CD8T'
-    test_adata = data_utils.load_mtx(HNSC_CD8_dir+os.sep+'HNSC_CD8T')
-    test_metadata = pd.read_csv(HNSC_CD8_dir+os.sep+'HNSC_CD8T_metadata_curated.csv', index_col=0)
+    Zheng_CD4T_dir = data_dir+os.sep+'Zheng_CD4T'
+    test_adata = data_utils.load_mtx(Zheng_CD4T_dir+os.sep+'Zheng_CD4T')
+    test_metadata = pd.read_csv(Zheng_CD4T_dir+os.sep+'Zheng_CD4T_metadata.csv', index_col=0)
     test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
-    celltype_col = 'celltype'
-
-if experiment == 'ProjecTILs_CD8_to_HNSC_CD8':
-    ProjecTILs_CD8_dir = data_dir+os.sep+'ProjecTILs_CD8T'
-    train_adata = data_utils.load_mtx(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T')
-    train_metadata = pd.read_csv(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T_metadata.csv', index_col=0)
-    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
-    HNSC_CD8_dir = data_dir+os.sep+'HNSC_CD8T'
-    test_adata = data_utils.load_mtx(HNSC_CD8_dir+os.sep+'HNSC_CD8T')
-    test_metadata = pd.read_csv(HNSC_CD8_dir+os.sep+'HNSC_CD8T_metadata_curated.csv', index_col=0)
-    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
-    celltype_col = 'celltype'
-
-if experiment == 'GSE179994_CD8_to_Chu_CD8T':
-    GSE179994_CD8_dir = data_dir+os.sep+'GSE179994_CD8T'
-    train_adata = data_utils.load_mtx(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref')
-    train_metadata = pd.read_csv(GSE179994_CD8_dir+os.sep+'GSE179994_CD8T_ref_metadata.csv', index_col=0)
-    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
-    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
-    test_adata = data_utils.load_mtx(Chu_CD8T_dir+os.sep+'test_20_pancanT')
-    test_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'test_20_pancanT_metadata.csv', index_col=0)
-    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
-    test_adata.obs['celltype'] = test_adata.obs['curated_celltype'].values
-    celltype_col = 'celltype'  
-
-if experiment == 'ProjecTILs_CD8_to_Chu_CD8T':
-    ProjecTILs_CD8_dir = data_dir+os.sep+'ProjecTILs_CD8T'
-    train_adata = data_utils.load_mtx(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T')
-    train_metadata = pd.read_csv(ProjecTILs_CD8_dir+os.sep+'ProjecTIL_CD8T_metadata.csv', index_col=0)
-    train_adata.obs = train_adata.obs.merge(train_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
-    Chu_CD8T_dir = data_dir+os.sep+'Chu_pancancer_CD8T'
-    test_adata = data_utils.load_mtx(Chu_CD8T_dir+os.sep+'test_20_pancanT')
-    test_metadata = pd.read_csv(Chu_CD8T_dir+os.sep+'test_20_pancanT_metadata.csv', index_col=0)
-    test_adata.obs = test_adata.obs.merge(test_metadata, left_on="barcode", right_index=True, how='left', suffixes=('', '_x'))
-    test_adata.obs['celltype'] = test_adata.obs['curated_celltype'].values
     celltype_col = 'celltype'
     
 # --- check embedding first ---
@@ -157,7 +190,6 @@ train_adata.obsm['emb'] = embedding.cpu().numpy()
 embedding = pipeline.predict(test_adata, # An AnnData object
                 device=DEVICE) # Specify a gpu or cpu for model inference
 test_adata.obsm['emb'] = embedding.cpu().numpy()
-
 from xgboost import XGBClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, confusion_matrix
@@ -200,12 +232,22 @@ test_adata.obs['predicted_celltype_code'] = test_predictions_codes  # [0,1,2,3] 
 test_adata.obs['pred_celltype'] = test_predictions_labels       # original categorical labels
 # generate confusion matrix
 confusion_matrix_result = confusion_matrix(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'])
-# --- calculate ARI
-ari_score = adjusted_rand_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'])
-print(f"Adjusted Rand Index (ARI) score: {ari_score}")
+# --- calculate acc, macroF1, ARI
+acc = accuracy_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'])
+F1 = f1_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'], average='macro')
+ARI = adjusted_rand_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'])
+# write to file
+result_df = pd.DataFrame({
+    'Acc': [acc],
+    'macroF1': [F1], 
+    'ARI': [ARI]
+})
+result_df.to_csv(
+    os.path.join(CellPLM_result_dir, 'CellPLM_zeroshot_results_metrics.csv'),
+    index=False,  # Don't write row indices
+    quoting=0     # Don't quote strings (equivalent to quote=F in R)
+)
 test_adata.obs.to_csv(CellPLM_result_dir+os.sep+'CellPLM_zeroshot_predicted_celltypes.csv')
-
-
 
 # sc.pp.neighbors(data, use_rep='emb') # remove method='rapids' if rapids is not installed
 # sc.tl.umap(data) # remove method='rapids' if rapids is not installed
@@ -250,8 +292,22 @@ pred_labels_codes = pipeline.predict(
             )
 pred_labels = pipeline.label_encoders['celltype'].inverse_transform(pred_labels_codes)
 test_adata.obs['pred_celltype'] = pred_labels
-ari_score = adjusted_rand_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'])
-print(f"Finetune Adjusted Rand Index (ARI) score: {ari_score}")
+# ari_score = adjusted_rand_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'])
+# print(f"Finetune Adjusted Rand Index (ARI) score: {ari_score}")
+acc = accuracy_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'])
+F1 = f1_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'], average='macro')
+ARI = adjusted_rand_score(test_adata.obs[celltype_col], test_adata.obs['pred_celltype'])
+# write to file
+result_df = pd.DataFrame({
+    'Acc': [acc],
+    'macroF1': [F1], 
+    'ARI': [ARI]
+})
+result_df.to_csv(
+    os.path.join(CellPLM_result_dir, 'CellPLM_finetune_results_metrics.csv'),
+    index=False,  # Don't write row indices
+    quoting=0     # Don't quote strings (equivalent to quote=F in R)
+)
 test_adata.obs.to_csv(CellPLM_result_dir+os.sep+'CellPLM_finetune_predicted_celltypes.csv')
 
 # pipeline.score(data, # An AnnData object

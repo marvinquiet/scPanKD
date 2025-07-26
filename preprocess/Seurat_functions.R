@@ -9,8 +9,7 @@ predict_Seurat = function(ref_obj, tgt_obj, ref_celltype_ind='curated_celltype')
     return(tgt_obj)
 }
 
-load_Seurat_data = function(experiment, seed=1234) {
-    data_dir = "/net/zootopia/disk1/wenjinma/data/scPanKD_data"
+load_Seurat_data = function(data_dir, experiment) {
     require(Seurat)
     require(Matrix)
     # if (experiment == 'Chu_CD4T_validation') {
@@ -309,6 +308,7 @@ load_Seurat_data = function(experiment, seed=1234) {
         ProjecTIL_data_dir = file.path(data_dir, 'ProjecTILs_CD8T')
         train_obj = readRDS(file.path(ProjecTIL_data_dir, 'ProjecTILs_CD8T_Tissue_integrated.RDS'))
         # --- load test dataset
+        Chu_CD8_data_dir = file.path(data_dir, 'Chu_pancancer_CD8T')
         test_counts = readMM(file.path(Chu_CD8_data_dir, 'test_20_pancanT.mtx.gz'))
         test_genes = scan(file.path(Chu_CD8_data_dir, 'test_20_pancanT_genes.tsv'), what=character())
         test_barcodes = scan(file.path(Chu_CD8_data_dir, 'test_20_pancanT_barcodes.tsv'), what=character())
@@ -324,12 +324,12 @@ load_Seurat_data = function(experiment, seed=1234) {
         train_obj = readRDS(file.path(Chu_data_dir, 'Chu_CD8T_train_80_integrated.RDS'))
         # --- load test dataset
         ProjecTIL_data_dir = file.path(data_dir, 'ProjecTILs_CD8T')
-        test_counts = readMM(file.path(ProjecTIL_data_dir, 'ProjecTILs_CD8T.mtx.gz'))
-        test_barcodes = scan(file.path(ProjecTIL_data_dir, 'ProjecTILs_CD8T_barcodes.tsv'), what=character())
-        test_genes = scan(file.path(ProjecTIL_data_dir, 'ProjecTILs_CD8T_genes.tsv'), what=character())
+        test_counts = readMM(file.path(ProjecTIL_data_dir, 'ProjecTIL_CD8T.mtx.gz'))
+        test_barcodes = scan(file.path(ProjecTIL_data_dir, 'ProjecTIL_CD8T_barcodes.tsv'), what=character())
+        test_genes = scan(file.path(ProjecTIL_data_dir, 'ProjecTIL_CD8T_genes.tsv'), what=character())
         rownames(test_counts) = test_genes
         colnames(test_counts) = test_barcodes
-        test_metadata = read.csv(file.path(ProjecTIL_data_dir, 'ProjecTILs_CD8T_metadata.csv'), header=T, row.names=1)
+        test_metadata = read.csv(file.path(ProjecTIL_data_dir, 'ProjecTIL_CD8T_metadata.csv'), header=T, row.names=1)
         test_obj = CreateSeuratObject(counts=test_counts, meta.data=test_metadata[colnames(test_counts), ])
     }
 
@@ -444,8 +444,7 @@ load_Seurat_data = function(experiment, seed=1234) {
 }
 
 ## --- Seurat for ProjecTIL each to HNSC data
-load_Seurat_data_for_ProjecTIL_to_HNSC = function(ref_study) {
-    data_dir = "/net/zootopia/disk1/wenjinma/data/scPanKD_data"
+load_Seurat_data_for_ProjecTIL_to_HNSC = function(data_dir, ref_study) {
     require(Seurat)
     require(Matrix)
     # --- load train data

@@ -73,12 +73,19 @@ def predict(args, model, model_config):
 
     y_pred, y_pred_features = model.predict(test_data_tensor)
     y_pred = y_pred.detach().cpu().numpy()
+    model.eval()
+    y_pred_batch = model.batch_predictor(y_pred_features).detach().cpu().numpy()
+    y_pred_batch = np.argmax(y_pred_batch, axis=1)
+    test_adata.obs['pred_batch'] = y_pred_batch
     pred_celltypes = _utils._prob_to_label(y_pred, encoders)
     test_adata.obs[model_config['PredCelltype_COLUMN']] = pred_celltypes
 
     # --- visualize predicted features\
     metadata = pd.read_csv(args.input+'_metadata.csv', header=0, index_col=0)
-    test_adata.obs['true_label'] = metadata['curated_celltype'].values
+    if 'curated_celltype' in metadata.columns:
+        test_adata.obs['true_label'] = metadata['curated_celltype'].values
+    else:
+        test_adata.obs['true_label'] = metadata['celltype'].values
 
     y_pred_features = y_pred_features.detach().cpu().numpy()
     y_pred_features_adata = anndata.AnnData(X=y_pred_features, obs=test_adata.obs)
@@ -106,41 +113,95 @@ def predict(args, model, model_config):
         sampled_ref_adata = _utils._oversample_cells(test_ref_adata, 
                 celltype_col=firstround_COLUMN)
         x_tgt_train = _utils._extract_adata(sampled_ref_adata)
+        x_tgt_train_batch = sampled_ref_adata.obs['pred_batch'].values
         y_tgt_train = _utils._label_to_onehot(sampled_ref_adata.obs[firstround_COLUMN].tolist(),
                 encoders=encoders)
         
         # add training data information
         tgt_dataset = torch.utils.data.TensorDataset(torch.tensor(x_tgt_train, dtype=torch.float32, device=model_config['device']),
+                                                     torch.tensor(x_tgt_train_batch, dtype=torch.long, device=model_config['device']),
                                                      torch.tensor(y_tgt_train, dtype=torch.float32, device=model_config['device'])) 
         tgt_dataloader = torch.utils.data.DataLoader(tgt_dataset, batch_size=model_config['batch_size'], shuffle=True)
 
-        # teacher/student model on original celltype label
-        teacher = MLP(dims=model_config['teacher_MLP_DIMS'], input_dim=x_tgt_train.shape[1], n_classes=y_tgt_train.shape[1])
-        teacher = teacher.to(model_config['device'])
+        # --- retrain model as teacher model
+        if model_config['optimizer'] == 'adam':
+            teacher_optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=3e-4)
+        if model_config['optimizer'] == 'adamW':
+            teacher_optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=3e-4)
         criterion = torch.nn.CrossEntropyLoss()
-        teacher_optimizer = torch.optim.AdamW(teacher.parameters(), lr=model_config['learning_rate'])
-        teacher.train()
+        model.train()
         for _ in tqdm(range(model_config['max_epochs'])):
-            for batch_x, batch_y in tgt_dataloader:
+            for batch_x, batch_b, batch_y in tgt_dataloader:
                 teacher_optimizer.zero_grad()
-                outputs = teacher(batch_x)
-                loss = criterion(outputs, batch_y)
+                outputs, _ = model(batch_x, batch_b)
+                loss_cls = criterion(outputs, torch.argmax(batch_y, dim=1))
+                # add batch adversarial loss
+                batch_logits = model(batch_x, batch_b, reverse=True)
+                loss_adv = criterion(batch_logits, batch_b)
+                loss = loss_cls + 10 * loss_adv 
                 loss.backward()
                 teacher_optimizer.step()
+
         student = MLP(dims=model_config['student_MLP_DIMS'], input_dim=x_tgt_train.shape[1], n_classes=y_tgt_train.shape[1])
         student = student.to(model_config['device'])
-        # Initialize and compile distiller
-        trained_student = _utils._run_distiller(
-            tgt_dataloader,
-            student_model=student,
-            teacher_model=teacher,
-            epochs=model_config['distillation_epochs'])
+        student_optimizer = torch.optim.AdamW(student.parameters(), lr=3e-4)
+        model.eval()
+        student.train()
+        for epoch in tqdm(range(model_config['distillation_epochs'])):
+            total_loss = 0
+            for batch_x, batch_b, batch_y in tgt_dataloader:
+                # Forward pass
+                teacher_outputs, _ = model(batch_x, batch_b)
+                teacher_outputs = teacher_outputs.detach()
+                student_outputs = student(batch_x)
+                loss = _utils._distillation_loss(student_outputs, teacher_outputs, batch_y, alpha=0.1, T=3)
+                # Backward pass and optimization
+                student_optimizer.zero_grad()
+                loss.backward()
+                student_optimizer.step()
+                total_loss += loss.item()
+            # Print loss every 10 epochs
+            if (epoch + 1) % 10 == 0:
+                avg_loss = total_loss / len(tgt_dataloader)
+                print(f"Epoch [{epoch + 1}/{model_config['distillation_epochs']}], Loss: {avg_loss:.4f}")
 
         x_tgt_test = _utils._extract_adata(test_tgt_adata)
-        y_pred_tgt = trained_student.predict(torch.tensor(x_tgt_test, dtype=torch.float32, device=model_config['device']))
+        y_pred_tgt = student.predict(torch.tensor(x_tgt_test, dtype=torch.float32, device=model_config['device']))
         y_pred_tgt = y_pred_tgt.detach().cpu().numpy()
 
         pred_celltypes = _utils._prob_to_label(y_pred_tgt, encoders)
         test_adata.obs.loc[high_entropy_cells, model_config['PredCelltype_COLUMN']] = pred_celltypes
         ## select certain columns and store to the file
         test_adata.obs[['pred_celltype', 'firstround_pred_celltype', 'entropy']].to_csv(args.output_dir+os.sep+args.prefix+'celltypes.csv')
+
+
+        # # teacher/student model on original celltype label
+        # teacher = MLP(dims=model_config['teacher_MLP_DIMS'], input_dim=x_tgt_train.shape[1], n_classes=y_tgt_train.shape[1])
+        # teacher = teacher.to(model_config['device'])
+        # criterion = torch.nn.CrossEntropyLoss()
+        # teacher_optimizer = torch.optim.AdamW(teacher.parameters(), lr=model_config['learning_rate'])
+        # teacher.train()
+        # for _ in tqdm(range(model_config['max_epochs'])):
+        #     for batch_x, batch_y in tgt_dataloader:
+        #         teacher_optimizer.zero_grad()
+        #         outputs = teacher(batch_x)
+        #         loss = criterion(outputs, batch_y)
+        #         loss.backward()
+        #         teacher_optimizer.step()
+        # student = MLP(dims=model_config['student_MLP_DIMS'], input_dim=x_tgt_train.shape[1], n_classes=y_tgt_train.shape[1])
+        # student = student.to(model_config['device'])
+        # # Initialize and compile distiller
+        # trained_student = _utils._run_distiller(
+        #     tgt_dataloader,
+        #     student_model=student,
+        #     teacher_model=teacher,
+        #     epochs=model_config['distillation_epochs'])
+
+        # x_tgt_test = _utils._extract_adata(test_tgt_adata)
+        # y_pred_tgt = trained_student.predict(torch.tensor(x_tgt_test, dtype=torch.float32, device=model_config['device']))
+        # y_pred_tgt = y_pred_tgt.detach().cpu().numpy()
+
+        # pred_celltypes = _utils._prob_to_label(y_pred_tgt, encoders)
+        # test_adata.obs.loc[high_entropy_cells, model_config['PredCelltype_COLUMN']] = pred_celltypes
+        # ## select certain columns and store to the file
+        # test_adata.obs[['pred_celltype', 'firstround_pred_celltype', 'entropy']].to_csv(args.output_dir+os.sep+args.prefix+'celltypes.csv')
