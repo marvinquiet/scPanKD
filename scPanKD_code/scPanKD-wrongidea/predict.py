@@ -71,9 +71,13 @@ def predict(args, model, model_config):
     test_data_mat = _utils._extract_adata(test_adata)
     test_data_tensor = torch.tensor(test_data_mat, dtype=torch.float32, device=model_config['device'])
 
-    y_pred, y_pred_features = model.predict(test_data_tensor)
+    y_pred, y_pred_features, y_pred_batch = model.predict(test_data_tensor, 
+                                                          model.reference_gene_expr_by_cancer,
+                                                          vote_strategy='majority')
     y_pred = y_pred.detach().cpu().numpy()
+    y_pred_batch = y_pred_batch.detach().cpu().numpy()
     model.eval()
+    test_adata.obs['pred_batch'] = y_pred_batch
     pred_celltypes = _utils._prob_to_label(y_pred, encoders)
     test_adata.obs[model_config['PredCelltype_COLUMN']] = pred_celltypes
 
@@ -107,17 +111,16 @@ def predict(args, model, model_config):
         test_tgt_adata = test_adata[high_entropy_cells]
 
         ## enlarge reference dataset for second round
-        # sampled_ref_adata = _utils._oversample_cells(test_ref_adata, 
-        #         celltype_col=firstround_COLUMN)
-        # x_tgt_train = _utils._extract_adata(sampled_ref_adata)
-        # y_tgt_train = _utils._label_to_onehot(sampled_ref_adata.obs[firstround_COLUMN].tolist(),
-        #         encoders=encoders)
-        x_tgt_train = _utils._extract_adata(test_ref_adata)
-        y_tgt_train = _utils._label_to_onehot(test_ref_adata.obs[firstround_COLUMN].tolist(),
+        sampled_ref_adata = _utils._oversample_cells(test_ref_adata, 
+                celltype_col=firstround_COLUMN)
+        x_tgt_train = _utils._extract_adata(sampled_ref_adata)
+        x_tgt_train_batch = sampled_ref_adata.obs['pred_batch'].values
+        y_tgt_train = _utils._label_to_onehot(sampled_ref_adata.obs[firstround_COLUMN].tolist(),
                 encoders=encoders)
         
         # add training data information
         tgt_dataset = torch.utils.data.TensorDataset(torch.tensor(x_tgt_train, dtype=torch.float32, device=model_config['device']),
+                                                     torch.tensor(x_tgt_train_batch, dtype=torch.long, device=model_config['device']),
                                                      torch.tensor(y_tgt_train, dtype=torch.float32, device=model_config['device'])) 
         tgt_dataloader = torch.utils.data.DataLoader(tgt_dataset, batch_size=model_config['batch_size'], shuffle=True)
 
@@ -129,11 +132,14 @@ def predict(args, model, model_config):
         criterion = torch.nn.CrossEntropyLoss()
         model.train()
         for _ in tqdm(range(model_config['max_epochs'])):
-            for batch_x, batch_y in tgt_dataloader:
+            for batch_x, batch_c, batch_y in tgt_dataloader:
                 teacher_optimizer.zero_grad()
                 outputs, _ = model(batch_x)
                 loss_cls = criterion(outputs, torch.argmax(batch_y, dim=1))
-                loss = loss_cls
+                # add batch adversarial loss
+                cancer_logits = model(batch_x, reverse=True)
+                loss_adv = criterion(cancer_logits, batch_c)
+                loss = loss_cls + 10 * loss_adv
                 loss.backward()
                 teacher_optimizer.step()
 
@@ -144,7 +150,7 @@ def predict(args, model, model_config):
         student.train()
         for epoch in tqdm(range(model_config['distillation_epochs'])):
             total_loss = 0
-            for batch_x, batch_y in tgt_dataloader:
+            for batch_x, batch_c, batch_y in tgt_dataloader:
                 # Forward pass
                 teacher_outputs, _ = model(batch_x)
                 teacher_outputs = teacher_outputs.detach()
@@ -160,26 +166,17 @@ def predict(args, model, model_config):
                 avg_loss = total_loss / len(tgt_dataloader)
                 print(f"Epoch [{epoch + 1}/{model_config['distillation_epochs']}], Loss: {avg_loss:.4f}")
 
-        x_tgt = _utils._extract_adata(test_adata)
-        y_pred, y_pred_features = student.predict(torch.tensor(x_tgt, dtype=torch.float32, device=model_config['device']))
-        y_pred = y_pred.detach().cpu().numpy()
-        pred_celltypes = _utils._prob_to_label(y_pred.argmax(1), encoders)
-        test_adata.obs[model_config['PredCelltype_COLUMN']] = pred_celltypes
-        # visualize student model
-        y_pred_features = y_pred_features.detach().cpu().numpy()
-        y_pred_features_adata = anndata.AnnData(X=y_pred_features, obs=test_adata.obs)
-        _utils._visualize_embedding(y_pred_features_adata, args.output_dir, color_columns=[model_config['PredCelltype_COLUMN'], 'true_label'], prefix=args.prefix+'embedding_pred_secondround', reduction="UMAP")
-        # x_tgt_test = _utils._extract_adata(test_tgt_adata)
-        # y_pred_tgt = student.predict(torch.tensor(x_tgt_test, dtype=torch.float32, device=model_config['device']))
-        # y_pred_tgt = y_pred_tgt.detach().cpu().numpy()
-        # pred_celltypes = _utils._prob_to_label(y_pred_tgt.argmax(1), encoders)
-        # test_adata.obs.loc[high_entropy_cells, model_config['PredCelltype_COLUMN']] = pred_celltypes
+        x_tgt_test = _utils._extract_adata(test_tgt_adata)
+        y_pred_tgt = student.predict(torch.tensor(x_tgt_test, dtype=torch.float32, device=model_config['device']))
+        y_pred_tgt = y_pred_tgt.detach().cpu().numpy()
+        pred_celltypes = _utils._prob_to_label(y_pred_tgt.argmax(1), encoders)
+        test_adata.obs.loc[high_entropy_cells, model_config['PredCelltype_COLUMN']] = pred_celltypes
         
         # y_pred_ref = student.predict(torch.tensor(x_tgt_train, dtype=torch.float32, device=model_config['device']))
         # y_pred_ref = y_pred_ref.detach().cpu().numpy()
         # pred_celltypes = _utils._prob_to_label(y_pred_ref.argmax(1), encoders)
         # test_adata.obs.loc[low_entropy_cells, model_config['PredCelltype_COLUMN']] = pred_celltypes
-        # select certain columns and store to the file
+        ## select certain columns and store to the file
         test_adata.obs.to_csv(args.output_dir+os.sep+args.prefix+'celltypes.csv')
 
         # # teacher/student model on original celltype label

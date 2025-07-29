@@ -31,4 +31,4 @@ class MLP(nn.Module):
         with torch.no_grad():
             outputs = self.forward(x_test)
             probabilities = F.softmax(outputs, dim=1)
-        return probabilities, outputs
+        return probabilities

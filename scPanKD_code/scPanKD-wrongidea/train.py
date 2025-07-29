@@ -73,6 +73,11 @@ def train_batch_MLP(args, model_config):
     cancer_info = np.array(train_adata.obs['batch']).astype('int')
     ## get x_train, y_train
     x_train = _utils._extract_adata(train_adata)
+    # generate a list of gene expression matrix for each cancer type with x_train
+    reference_gene_expr_by_cancer = []
+    for cancer in set(cancer_info):
+        cancer_idx = np.where(cancer_info == cancer)[0]
+        reference_gene_expr_by_cancer.append(torch.tensor(x_train[cancer_idx, :]).float().to(model_config['device']))
     enc = OneHotEncoder(handle_unknown='ignore')
     y_train = enc.fit_transform(train_adata.obs[[model_config['Celltype_COLUMN']]]).toarray()
     print("Cell type categories: ", enc.categories_[0])
@@ -126,15 +131,17 @@ def train_batch_MLP(args, model_config):
         os.makedirs(model_save_dir)
     torch.save(cancer_mlp.state_dict(), model_save_dir+os.sep+'model.pth')
     
+    
     # visualize predicted features for training data
-    _, features = cancer_mlp.predict(torch.tensor(x_train, dtype=torch.float32, device=model_config['device']))
+    _, features, _ = cancer_mlp.predict(torch.tensor(x_train, dtype=torch.float32, device=model_config['device']),
+                                        reference_gene_expr_by_cancer,
+                                        vote_strategy='majority')
     feature_adata = anndata.AnnData(X=features.cpu().detach().numpy(), obs=train_adata.obs)
-    feature_adata.obs['batch'] = feature_adata.obs['batch'].astype('category')
     _utils._visualize_embedding(feature_adata, args.output_dir, color_columns=['celltype', 'batch'], prefix=args.prefix+'embedding_', reduction="UMAP")
 
     ## save feature information along with mean and standard deviation
     train_adata.var.to_csv(model_save_dir+os.sep+"features.txt", sep='\t')
-    ## save encoder information
+    ## save enc information
     with open(model_save_dir+os.sep+"onehot_encoder.txt", 'w') as f:
         for idx, cat in enumerate(enc.categories_[0]):
             f.write('%d:%s\n' % (idx, cat))
