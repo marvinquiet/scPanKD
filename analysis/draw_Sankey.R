@@ -7,7 +7,9 @@ data_dir = '/net/zootopia/disk1/wenjinma/data/scPanKD_data'
 library(aricode)
 library(networkD3)
 library(dplyr)
+library(ggpubr)
 library(ggplot2)
+library(cowplot)
 library(Matrix)
 library(optparse)
 source("pipelines/calculate_metrics.R")
@@ -32,7 +34,7 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
     for (study in studies) {
         each_result_dir = file.path(method_result_dir, study)
         ## load predicted data
-        if (opt$method == 'CellTypist' || opt$method == 'scPanKD') {
+        if (opt$method == 'CellTypist' || grepl('scPanKD', opt$method)) {
             res = read.csv(file.path(method_result_dir, study, paste0(opt$method, '_predicted_celltypes.csv')), row.names=1, header=T)
         } else {
             res = read.csv(file.path(method_result_dir, paste0(opt$method, '_predicted_results.csv')), row.names=1, header=T)
@@ -42,7 +44,7 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
         cat("No. Ground Truth cells:", nrow(metadata), 'No. Predicted cells:', nrow(res), 'No. Common cells:', length(common_cells), '\n')
         res = res[common_cells, ,drop=F]
         metadata = metadata[common_cells, ]
-        if (opt$method == 'Cellcano' || opt$method == 'scPanKD') {
+        if (opt$method == 'Cellcano' || grepl('scPanKD', opt$method)) {
             pred_res = data.frame(source=metadata$curated_celltype, target=res$pred_celltype)
             acc = calculate_accuracy(pred_res[, 1], pred_res[, 2])
             F1 = calculate_macroF1(pred_res[, 1], pred_res[, 2])
@@ -52,7 +54,8 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
             acc = calculate_accuracy(pred_res[, 1], pred_res[, 2])
             F1 = calculate_macroF1(pred_res[, 1], pred_res[, 2])
             ARI = calculate_ARI(pred_res[, 1], pred_res[, 2])
-            result_df = rbind(result_df, data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI))
+            NMI = calculate_NMI(pred_res[, 1], pred_res[, 2])
+            result_df = rbind(result_df, data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI, 'NMI'=NMI))
             rownames(result_df) = c('Second round', 'First round')
             print(result_df)
             write.csv(result_df, file.path(each_result_dir, paste0(opt$method, '_results_metrics.csv')), quote=F)
@@ -63,7 +66,8 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
             acc = calculate_accuracy(pred_res[, 1], pred_res[, 2])
             F1 = calculate_macroF1(pred_res[, 1], pred_res[, 2])
             ARI = calculate_ARI(pred_res[, 1], pred_res[, 2])
-            result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
+            NMI = calculate_NMI(pred_res[, 1], pred_res[, 2])
+            result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI, 'NMI'=NMI)
             write.csv(result_df, file.path(each_result_dir, paste0(opt$method, '_results_metrics.csv')), quote=F)
         }
         if (opt$method == 'Seurat') {
@@ -91,8 +95,12 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
     }
 
     ## load predicted data
-    if (opt$method == 'CellTypist' || opt$method == 'scPanKD') {
-        res = read.csv(file.path(method_result_dir, paste0(opt$method, '_predicted_celltypes.csv')), row.names=1, header=T)
+    if (opt$method == 'CellTypist' || grepl('scPanKD', opt$method)) {
+        if (grepl('scPanKD', opt$method)) {
+            res = read.csv(file.path(method_result_dir, 'scPanKD_predicted_celltypes.csv'), row.names=1, header=T)
+        } else {
+            res = read.csv(file.path(method_result_dir, paste0(opt$method, '_predicted_celltypes.csv')), row.names=1, header=T)
+        }
     } else {
         res = read.csv(file.path(method_result_dir, paste0(opt$method, '_predicted_results.csv')), row.names=1, header=T)
     }
@@ -105,33 +113,53 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
     } else {
         metadata$curated_celltype = as.factor(metadata$celltype)
     }
-    if (opt$method == 'Cellcano' || opt$method == 'scPanKD') {
+    if (opt$method == 'Cellcano' || grepl('scPanKD', opt$method)) {
         pred_res = data.frame(source=metadata$curated_celltype, target=res$pred_celltype)
         acc = calculate_accuracy(pred_res[, 1], pred_res[, 2])
         F1 = calculate_macroF1(pred_res[, 1], pred_res[, 2])
         ARI = calculate_ARI(pred_res[, 1], pred_res[, 2])
-        result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
+        NMI = calculate_NMI(pred_res[, 1], pred_res[, 2])
+        result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI, 'NMI'=NMI)
         pred_res = data.frame(source=metadata$curated_celltype, target=res$firstround_pred_celltype)
         acc = calculate_accuracy(pred_res[, 1], pred_res[, 2])
         F1 = calculate_macroF1(pred_res[, 1], pred_res[, 2])
         ARI = calculate_ARI(pred_res[, 1], pred_res[, 2])
-        result_df = rbind(result_df, data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI))
+        NMI = calculate_NMI(pred_res[, 1], pred_res[, 2])
+        result_df = rbind(result_df, data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI, 'NMI'=NMI))
         rownames(result_df) = c('Second round', 'First round')
         print(result_df)
         write.csv(result_df, file.path(method_result_dir, paste0(opt$method, '_results_metrics.csv')), quote=F)
+        pred_res = data.frame(source=metadata$curated_celltype, target=res$pred_celltype)
+
+        # --- plot the entropy for all cell types
+        res_cm_em = res[res$firstround_pred_celltype %in% c('CD8.EM', 'CD8.CM'), ]
+        res_cm_em$entropy = as.numeric(res_cm_em$entropy)
+        p = ggboxplot(res_cm_em, x='firstround_pred_celltype', y='entropy', color='firstround_pred_celltype') + 
+            # stat_summary(fun.y=mean, geom="point", shape=20, size=6, color="red", fill="red") + 
+            scale_color_brewer(palette = 'Set1') + 
+            theme(axis.text.x = element_text(angle = 45, hjust=1),
+                axis.title =element_blank()) + 
+            theme(legend.position="none")
+            # Add scType as horizontal line with better positioning
+        # legend = get_plot_component(p, 'guide-box', return_all = TRUE)[[4]]
+        ggsave(file.path(method_result_dir, 'entropy_boxplot.pdf'), p, width=2, height=4)
+
     }
-    if (opt$method == 'scType' || opt$method == 'CellTypist') {
+    if (opt$method == 'scType' || opt$method == 'CellTypist' || opt$method == 'Seurat') {
         # pred_res = data.frame(source=metadata$curated_celltype, target=res[, 1]) 
         pred_res = data.frame(source=metadata$curated_celltype, target=res$predicted.id) 
         acc = calculate_accuracy(pred_res[, 1], pred_res[, 2])
         F1 = calculate_macroF1(pred_res[, 1], pred_res[, 2])
         ARI = calculate_ARI(pred_res[, 1], pred_res[, 2])
-        result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
+        NMI = calculate_NMI(pred_res[, 1], pred_res[, 2])
+        result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI, 'NMI'=NMI)
+        print(result_df)
         write.csv(result_df, file.path(method_result_dir, paste0(opt$method, '_results_metrics.csv')), quote=F)
     }
-    if (opt$method == 'Seurat') {
-        pred_res = data.frame(source=metadata$curated_celltype, target=res$predicted.id)
-    }
+    # if (opt$method == 'Seurat') {
+    #     pred_res = data.frame(source=metadata$curated_celltype, target=res$predicted.id)
+
+    # }
     if (opt$method == 'ProjecTIL') {
         pred_res = data.frame(source=res$curated_celltype_groundtruth, target=res$celltype)
         na_num = sum(is.na(pred_res$target))
@@ -150,31 +178,51 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
         acc = calculate_accuracy(pred_res[, 1], pred_res[, 2])
         F1 = calculate_macroF1(pred_res[, 1], pred_res[, 2])
         ARI = calculate_ARI(pred_res[, 1], pred_res[, 2])
-        result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
+        NMI = calculate_NMI(pred_res[, 1], pred_res[, 2])
+        result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI, 'NMI'=NMI)
         print(result_df)
         write.csv(result_df, file.path(method_result_dir, paste0(opt$method, '_results_metrics.csv')), quote=F)
     }
 }
 
-## Create Sankey link
-# links = pred_res %>%
-#       group_by_all() %>%
-#       summarise(value = n())
-# links = as.data.frame(links)
-# links$source = paste0('source_', links$source)
-# links$target = paste0('target_', links$target)
-# nodes = data.frame(name=c(as.character(links$source), 
-#                            as.character(links$target)) %>% unique()
-#                       )
-# links$IDsource <- match(links$source, nodes$name)-1 
-# links$IDtarget <- match(links$target, nodes$name)-1
+conf_mat <- table(pred_res$source, pred_res$target)
+conf_df <- as.data.frame(conf_mat)
+colnames(conf_df) <- c("True", "Predicted", "Count")
 
-# # Create Sankey plot
-# p = sankeyNetwork(Links = links, Nodes = nodes,
-#                 Source = "IDsource", Target = "IDtarget",
-#                 Value = "value", NodeID = "name", 
-#                 sinksRight=FALSE, units = "TWh", fontSize = 12, nodeWidth = 30)
-# require(htmlwidgets)
-# saveWidget(p, file=file.path(method_result_dir, paste0(opt$method, '_sankey_plot.html')))
-# require(webshot)
-# webshot(file.path(method_result_dir, paste0(opt$method, '_sankey_plot.html')), file.path(method_result_dir, paste0(opt$method, '_sankey_plot.pdf')))
+# Plot heatmap
+ggplot(conf_df, aes(x = Predicted, y = True, fill = Count)) +
+    geom_tile() +
+    geom_text(aes(label = Count), color = "black") +
+    scale_fill_gradient(low = "white", high = "red") +
+    theme_minimal() +
+    labs(
+        x="Predicted Cell Type",
+        y="True Cell Type",
+        title = opt$method,
+    ) + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+ggsave(file.path(method_result_dir, paste0('confusion_matrix_heatmap.pdf')), width=4.5, height=4)
+
+# Create Sankey link
+links = pred_res %>%
+      group_by_all() %>%
+      summarise(value = n())
+links = as.data.frame(links)
+links$source = paste0('Ref-', links$source)
+links$target = paste0('Query-', links$target)
+nodes = data.frame(name=c(as.character(links$source), 
+                           as.character(links$target)) %>% unique()
+                      )
+links$IDsource <- match(links$source, nodes$name)-1 
+links$IDtarget <- match(links$target, nodes$name)-1
+
+# Create Sankey plot
+p = sankeyNetwork(Links = links, Nodes = nodes,
+                Source = "IDsource", Target = "IDtarget",
+                Value = "value", NodeID = "name", 
+                sinksRight=FALSE, units = "TWh", fontSize = 20, nodeWidth = 30)
+require(htmlwidgets)
+saveWidget(p, file=file.path(method_result_dir, 'sankey_plot.html'))
+Sys.setenv(OPENSSL_CONF="/dev/null")
+require(webshot)
+webshot(file.path(method_result_dir, 'sankey_plot.html'), file.path(method_result_dir, 'sankey_plot.pdf'))

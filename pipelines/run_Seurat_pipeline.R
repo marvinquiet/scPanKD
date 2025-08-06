@@ -34,7 +34,7 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
     for (study in studies) {
         each_result_dir = file.path(Seurat_result_dir, study)
         dir.create(each_result_dir, showWarnings = FALSE)
-        res = load_Seurat_data_for_ProjecTIL_to_HNSC(data_dir, ref_study=study)
+        res = load_Seurat_data_for_ProjecTIL_to_HNSC(data_dir, ref_study=study, ProjecTIL_data_dir=file.path(data_dir, 'ProjecTILs_CD8T/trimmed'))
         predicted_test_obj = predict_Seurat(res$train_obj, res$test_obj, ref_celltype_ind='celltype')
         write.csv(predicted_test_obj@meta.data, file.path(each_result_dir, 'Seurat_predicted_results.csv'), quote=F)
         # compute results
@@ -44,6 +44,22 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
         result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
         write.csv(result_df, file.path(each_result_dir, 'Seurat_results_metrics.csv'), quote=F)
     }
+} else if (opt$experiment == 'ProjecTILs_each_CD8_cancertrimmed_to_HNSC_CD8') {
+    studies = c('HNSCC', 'Melanoma', 'SCC', 'Lung', 'Endometrial', 'Renal', 'Breast')
+    for (study in studies) {
+        each_result_dir = file.path(Seurat_result_dir, study)
+        dir.create(each_result_dir, showWarnings = FALSE)
+        res = load_Seurat_data_for_ProjecTIL_to_HNSC(data_dir, ref_study=study, ProjecTIL_data_dir=file.path(data_dir, 'ProjecTILs_CD8T/Tissue_trimmed'))
+        predicted_test_obj = predict_Seurat(res$train_obj, res$test_obj, ref_celltype_ind='celltype')
+        write.csv(predicted_test_obj@meta.data, file.path(each_result_dir, 'Seurat_predicted_results.csv'), quote=F)
+        # compute results
+        acc = calculate_accuracy(predicted_test_obj$curated_celltype, predicted_test_obj$predicted.id)
+        F1 = calculate_macroF1(predicted_test_obj$curated_celltype, predicted_test_obj$predicted.id)
+        ARI = calculate_ARI(predicted_test_obj$curated_celltype, predicted_test_obj$predicted.id)
+        result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
+        write.csv(result_df, file.path(each_result_dir, 'Seurat_results_metrics.csv'), quote=F)
+    }
+
 } else { 
     # --- run other experiments
     res = load_Seurat_data(data_dir, opt$experiment)
@@ -79,8 +95,23 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
         
     # }
     # ProjecTILs_CD8_multibatch_trimmed_to_HNSC_CD8 / Chu_CD4_multibatch_validation
-    predicted_test_obj = predict_Seurat(res$train_obj, res$test_obj, ref_celltype_ind='celltype')
+    predicted_obj = predict_Seurat(res$train_obj, res$test_obj, ref_celltype_ind='celltype')
+    predicted_ref_obj = predicted_obj$ref
+    predicted_test_obj = predicted_obj$tgt
 
+    p1 = DimPlot(predicted_ref_obj, reduction = "umap", group.by = "celltype", 
+        repel = TRUE) + NoLegend() + ggtitle("Reference dataset")
+    p2 = DimPlot(predicted_test_obj, reduction = "ref.umap", group.by = "predicted.celltype") + ggtitle("Query dataset")
+    ggsave(file.path(Seurat_result_dir, 'Seurat_integrated_reference_query_celltype.pdf'), plot=p1+p2, width = 7, height = 3)
+    p3 = DimPlot(predicted_ref_obj, reduction = "umap", group.by = "Tissue", 
+        repel = TRUE) + ggtitle("Reference cancer types")
+    ggsave(file.path(Seurat_result_dir, 'Seurat_integrated_reference_cancertype.pdf'), plot=p3, width = 3.5, height = 3)
+    p4 = DimPlot(predicted_ref_obj, reduction = "umap", group.by = "Cohort", 
+        repel = TRUE) + ggtitle("Reference studies")
+    ggsave(file.path(Seurat_result_dir, 'Seurat_integrated_reference_studies.pdf'), plot=p4, width = 4.5, height = 3)
+
+    saveRDS(predicted_ref_obj, file.path(Seurat_result_dir, 'Seurat_predicted_ref_obj.rds'))
+    saveRDS(predicted_test_obj, file.path(Seurat_result_dir, 'Seurat_predicted_test_obj.rds'))
     write.csv(predicted_test_obj@meta.data, file.path(Seurat_result_dir, 'Seurat_predicted_results.csv'), quote=F)
     if (!'curated_celltype' %in% colnames(predicted_test_obj@meta.data)) {
         predicted_test_obj$curated_celltype = predicted_test_obj$celltype

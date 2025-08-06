@@ -92,6 +92,7 @@ def predict(args, model, model_config):
     if test_adata.shape[0] < 1000:
         print("Your input cell is less than 1000. For performance, we will not perform two-round strategy on your data.")
         test_adata.obs[['pred_celltype']].to_csv(args.output_dir+os.sep+args.prefix+'celltypes.csv')
+        return model
     ## when cell number is large enough
     else:
         firstround_COLUMN = 'firstround_' + model_config['PredCelltype_COLUMN']
@@ -104,7 +105,7 @@ def predict(args, model, model_config):
         low_entropy_cells = test_adata.obs_names[np.where(test_adata.obs['entropy_status'] == 'low')].tolist()
         high_entropy_cells = test_adata.obs_names[np.where(test_adata.obs['entropy_status'] == 'high')].tolist()
         test_ref_adata = test_adata[low_entropy_cells]
-        test_tgt_adata = test_adata[high_entropy_cells]
+        # test_tgt_adata = test_adata[high_entropy_cells]
 
         ## enlarge reference dataset for second round
         # sampled_ref_adata = _utils._oversample_cells(test_ref_adata, 
@@ -169,6 +170,7 @@ def predict(args, model, model_config):
         y_pred_features = y_pred_features.detach().cpu().numpy()
         y_pred_features_adata = anndata.AnnData(X=y_pred_features, obs=test_adata.obs)
         _utils._visualize_embedding(y_pred_features_adata, args.output_dir, color_columns=[model_config['PredCelltype_COLUMN'], 'true_label'], prefix=args.prefix+'embedding_pred_secondround', reduction="UMAP")
+        y_pred_features_adata.write_h5ad(args.output_dir+os.sep+args.prefix+'query_features.h5ad')
         # x_tgt_test = _utils._extract_adata(test_tgt_adata)
         # y_pred_tgt = student.predict(torch.tensor(x_tgt_test, dtype=torch.float32, device=model_config['device']))
         # y_pred_tgt = y_pred_tgt.detach().cpu().numpy()
@@ -181,6 +183,11 @@ def predict(args, model, model_config):
         # test_adata.obs.loc[low_entropy_cells, model_config['PredCelltype_COLUMN']] = pred_celltypes
         # select certain columns and store to the file
         test_adata.obs.to_csv(args.output_dir+os.sep+args.prefix+'celltypes.csv')
+        # model_save_dir = args.output_dir+os.sep+args.prefix+'student_model'
+        # if not os.path.exists(model_save_dir):
+        #     os.makedirs(model_save_dir)
+        # torch.save(student.state_dict(), model_save_dir+os.sep+'model.pth')
+        return student
 
         # # teacher/student model on original celltype label
         # teacher = MLP(dims=model_config['teacher_MLP_DIMS'], input_dim=x_tgt_train.shape[1], n_classes=y_tgt_train.shape[1])

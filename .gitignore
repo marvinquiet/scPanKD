@@ -6,6 +6,7 @@ results/
 *.png
 *.log
 *.out
+wandb/
 
 
 # Byte-compiled / optimized / DLL files

@@ -29,3 +29,8 @@ calculate_ARI <- function(true_celltypes, pred_celltypes) {
     return(ARI(true_celltypes, pred_celltypes))
 }
 
+calculate_NMI <- function(true_celltypes, pred_celltypes) {
+    require(aricode)
+    return(NMI(true_celltypes, pred_celltypes))
+}
+

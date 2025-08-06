@@ -12,7 +12,9 @@ cd /net/mulan/home/wenjinma/projects/scPanKD/pipelines
 
 # === ProjecTIL each study -> HNSC, common celltypes
 Rscript run_Seurat_pipeline.R --experiment ProjecTILs_each_CD8_to_HNSC_CD8 # celltype
+Rscript run_Seurat_pipeline.R --experiment ProjecTILs_each_CD8_cancertrimmed_to_HNSC_CD8 # celltype
 Rscript run_Seurat_pipeline.R --experiment ProjecTILs_CD8_multibatch_trimmed_to_HNSC_CD8 # celltype
+Rscript run_Seurat_pipeline.R --experiment ProjecTILs_CD8_multibatch_cancertrimmed_to_HNSC_CD8 # celltype
 
 # === Other studies -> inconsistent cell types
 Rscript run_Seurat_pipeline.R --experiment Chu_CD4_multibatch_validation

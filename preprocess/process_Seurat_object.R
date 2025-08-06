@@ -4,6 +4,7 @@
 data_dir = "/net/zootopia/disk1/wenjinma/data/scPanKD_data"
 require(Seurat)
 require(Matrix)
+library(cowplot)
 require(ggplot2)
 
 # --- generate Chu CD4T integrated data
@@ -98,7 +99,7 @@ p2 = DimPlot(ProjecTILs_object, reduction = "umap", group.by = "celltype", repel
 ggsave(file.path(ProjecTILs_CD8_data_dir, 'Seurat_integrated_ProjecTILs_CD8T_celltype.png'))
 
 
-# --- generate ProjecTILs CD8T integrated data - trimmed, based on cancer type
+# --- generate ProjecTILs CD8T integrated data - trimmed, based on individual
 ProjecTILs_CD8_data_dir = file.path(data_dir, 'ProjecTILs_CD8T')
 studies = c('EGAS00001004809', 'GSE123814', 'GSE139555', 'GSE159251', 'GSE176021', 'GSE179994', 'GSE180268', 'PRJNA705464')
 ProjecTILs_object_list = list()
@@ -130,6 +131,47 @@ ggsave(file.path(ProjecTILs_CD8_data_dir, 'Seurat_integrated_ProjecTILs_CD8T_tri
 p2 = DimPlot(ProjecTILs_object, reduction = "umap", group.by = "celltype", repel = TRUE)
 ggsave(file.path(ProjecTILs_CD8_data_dir, 'Seurat_integrated_ProjecTILs_CD8T_trimmed_celltype.png'))
 
+# --- generate ProjecTILs CD8T integrated data - trimmed, based on cancer type
+ProjecTILs_CD8_data_dir = file.path(data_dir, 'ProjecTILs_CD8T')
+studies = c('HNSCC', 'Melanoma', 'SCC', 'Lung', 'Endometrial', 'Renal', 'Breast')
+ProjecTILs_object_list = list()
+for (study in studies) {
+    study_counts = readMM(file.path(ProjecTILs_CD8_data_dir, 'Tissue_trimmed', paste0('ProjecTIL_', study, '_CD8T_trimmed.mtx.gz')))
+    study_genes = scan(file.path(ProjecTILs_CD8_data_dir, 'Tissue_trimmed', paste0('ProjecTIL_', study, '_CD8T_trimmed_genes.tsv')), what=character())
+    study_barcodes = scan(file.path(ProjecTILs_CD8_data_dir, 'Tissue_trimmed', paste0('ProjecTIL_', study, '_CD8T_trimmed_barcodes.tsv')), what=character())
+    rownames(study_counts) = study_genes
+    colnames(study_counts) = study_barcodes
+    study_metadata = read.csv(file.path(ProjecTILs_CD8_data_dir, 'Tissue_trimmed', paste0('ProjecTIL_', study, '_CD8T_trimmed_metadata.csv')), header=T, row.names=1)
+    study_object = CreateSeuratObject(counts=study_counts, meta.data=study_metadata[colnames(study_counts), ])
+    study_object = NormalizeData(study_object, normalization.method = "LogNormalize", scale.factor = 10000)
+    study_object = FindVariableFeatures(study_object)
+    study_object = ScaleData(study_object)
+    # --- plot umap for labels
+    study_object = RunPCA(study_object)
+    study_object = RunUMAP(study_object, reduction = "pca", dims = 1:30)
+    p1 = DimPlot(study_object, reduction = "umap", group.by = "celltype")
+    legend = get_plot_component(p1, 'guide-box', return_all = TRUE)[[1]]
+    ggsave(file.path(ProjecTILs_CD8_data_dir, paste0('Seurat_integrated_ProjecTILs_', study, '_CD8T_trimmed_celltype_legend.pdf')), legend, width = 2, height = 4)
+    p1 = p1 + theme(legend.position = 'none')
+    ggsave(file.path(ProjecTILs_CD8_data_dir, paste0('Seurat_integrated_ProjecTILs_', study, '_CD8T_trimmed_celltype.pdf')), width = 4, height = 4)
+    ProjecTILs_object_list[[study]] = study_object
+}
+features = SelectIntegrationFeatures(object.list=ProjecTILs_object_list)
+anchors = FindIntegrationAnchors(object.list = ProjecTILs_object_list, anchor.features = features)
+ProjecTILs_object_integrated = IntegrateData(anchorset = anchors)
+# integrate trainining object using tissue as batch
+ProjecTILs_object_integrated = ScaleData(ProjecTILs_object_integrated)
+ProjecTILs_object_integrated = RunPCA(ProjecTILs_object_integrated)
+ProjecTILs_object = ProjecTILs_object_integrated
+saveRDS(ProjecTILs_object, file=file.path(ProjecTILs_CD8_data_dir, 'ProjecTILs_CD8T_trimmed_Cancer_integrated.RDS'))
+# --- plot the integrated object
+ProjecTILs_object = RunUMAP(ProjecTILs_object, reduction = "pca", dims = 1:30)
+p1 = DimPlot(ProjecTILs_object, reduction = "umap", group.by = "Tissue")
+ggsave(file.path(ProjecTILs_CD8_data_dir, 'Seurat_integrated_ProjecTILs_CD8T_cancertrimmed_Tissue.pdf'), width = 5, height = 4)
+p2 = DimPlot(ProjecTILs_object, reduction = "umap", group.by = "celltype", repel = TRUE)
+ggsave(file.path(ProjecTILs_CD8_data_dir, 'Seurat_integrated_ProjecTILs_CD8T_cancertrimmed_celltype.pdf'), width = 5, height = 4)
+p3 = DimPlot(ProjecTILs_object, reduction = "umap", group.by = "Cohort", repel = TRUE)
+ggsave(file.path(ProjecTILs_CD8_data_dir, 'Seurat_integrated_ProjecTILs_CD8T_cancertrimmed_Cohort.pdf'), width = 5, height = 4)
 
 # --- generate Zheng CD4T integrated data
 Zheng_CD4_data_dir = file.path(data_dir, 'Zheng_CD4T')

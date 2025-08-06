@@ -10,9 +10,9 @@ library(cowplot)
 library(dplyr)
 source("/net/mulan/home/wenjinma/projects/scPanKD/pipelines/calculate_metrics.R")
 
-experiment = "ProjecTILs_each_CD8_to_HNSC_CD8"
-studies = c('EGAS00001004809', 'GSE123814', 'GSE139555', 'GSE159251', 'GSE176021', 'GSE179994', 'GSE180268', 'PRJNA705464')
-methods = c('scPanKD', 'Seurat', 'ProjecTIL', 'CellTypist')
+experiment = "ProjecTILs_each_CD8_cancertrimmed_to_HNSC_CD8"
+studies = c('HNSCC', 'Melanoma', 'SCC', 'Lung', 'Endometrial', 'Renal', 'Breast')
+methods = c('scPanKD', 'Seurat', 'CellTypist', 'ProjecTIL')
 metrics = c('Acc', 'macroF1', 'ARI')
 
 metadata = read.csv(file.path(data_dir, 'HNSC_CD8T', 'HNSC_CD8T_metadata.csv'),
@@ -60,7 +60,7 @@ for (method in methods) {
 }
 # add scType results -> this only has one result, so I separate it out
 method = "scType"
-result_dir = file.path(project_dir, 'results', method, experiment)
+result_dir = file.path(project_dir, 'results', method, 'ProjecTILs_each_CD8_to_HNSC_CD8')
 res = read.csv(file.path(result_dir, paste0(method, '_predicted_results.csv')), row.names=1, header=T)
 common_cells = intersect(rownames(metadata), rownames(res))
 cat("No. Ground Truth cells:", nrow(metadata), 'No. Predicted cells:', nrow(res), 'No. Common cells:', length(common_cells), '\n')
@@ -73,11 +73,9 @@ ARI = calculate_ARI(pred_res$source, pred_res$target)
 metric_df[nrow(metric_df)+1, ] = c('nostudy', method, 'Acc', acc)
 metric_df[nrow(metric_df)+1, ] = c('nostudy', method, 'macroF1', F1)
 metric_df[nrow(metric_df)+1, ] = c('nostudy', method, 'ARI', ARI)
-write.csv(metric_df, file.path(project_dir, 'results', 'summarized_results.csv'), quote=F)
+write.csv(metric_df, file.path(project_dir, 'results', 'summarized_results_cancertrimmed.csv'), quote=F)
 
 # --- plot a boxplot
-
-
 metric_df$value = as.numeric(metric_df$value)
 for (metric in metrics) {
     sub_metric_df = metric_df[metric_df$metric == metric, ]
@@ -90,9 +88,11 @@ for (metric in metrics) {
         summarize(mean_value = mean(value)) %>%
         arrange(desc(mean_value))
     boxplot_data$method = factor(boxplot_data$method, levels = group_means$method)
+    boxplot_data$study = factor(boxplot_data$study, levels = studies)
     p = ggboxplot(boxplot_data, x='method', y='value', color='method') + 
+        geom_jitter(aes(color=study), width = 0.2, size = 1.5, alpha = 0.6) + 
         stat_summary(fun.y=mean, geom="point", shape=20, size=6, color="red", fill="red") + 
-        scale_color_brewer(palette = 'Set1') + 
+        # scale_color_brewer(palette = 'Set1') + 
         theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
               axis.title =element_blank())
         # Add scType as horizontal line with better positioning
@@ -113,8 +113,18 @@ for (metric in metrics) {
             theme(plot.margin = margin(5.5, 40, 5.5, 5.5, "pt"))
     }
     p = p + theme(legend.position = "none")
-    ggsave(file.path(project_dir, 'results', paste0(metric, '_summarized_results.pdf')), width=3, height=3)
+    ggsave(file.path(project_dir, 'results', paste0(metric, '_summarized_results_cancertrimmed.pdf')), width=3, height=3)
 }
 
-
+# --- analyze more of the metric_df
+metric_df$value = as.numeric(metric_df$value)
+scPanKD_acc = metric_df[metric_df$method == 'scPanKD' & metric_df$metric == 'Acc', ]
+Seurat_acc = metric_df[metric_df$method == 'Seurat' & metric_df$metric == 'Acc', ]
+ProjecTIL_acc = metric_df[metric_df$method == 'ProjecTIL' & metric_df$metric == 'Acc', ]
+scPanKD_f1 = metric_df[metric_df$method == 'scPanKD' & metric_df$metric == 'macroF1', ]
+Seurat_f1 = metric_df[metric_df$method == 'Seurat' & metric_df$metric == 'macroF1', ]
+ProjecTIL_f1 = metric_df[metric_df$method == 'ProjecTIL' & metric_df$metric == 'macroF1', ]
+scPanKD_ari = metric_df[metric_df$method == 'scPanKD' & metric_df$metric == 'ARI', ]
+Seurat_ari = metric_df[metric_df$method == 'Seurat' & metric_df$metric == 'ARI', ]
+ProjecTIL_ari = metric_df[metric_df$method == 'ProjecTIL' & metric_df$metric == 'ARI', ]
 

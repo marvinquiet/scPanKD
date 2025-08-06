@@ -146,25 +146,77 @@ def _select_feature(adata: A, model_config: dict) -> A:
 
     if model_config['fs'] == "F-test":
         print("Use F-test to select features.\n")
-        if scipy.sparse.issparse(adata.X) or \
-                isinstance(adata.X, pd.DataFrame):
-            tmp_data = adata.X.toarray()
+        if model_config['fs_strategy'] == "cancer-specific" and len(set(adata.obs['batch'])) > 1:
+            batch_features = list()
+            for batch in set(adata.obs['batch']):
+                batch_adata = adata[adata.obs['batch'] == batch]
+                if scipy.sparse.issparse(batch_adata.X) or \
+                    isinstance(batch_adata.X, pd.DataFrame):
+                    batch_data = batch_adata.X.toarray()
+                else:
+                    batch_data = batch_adata.X
+                batch_cell_annots = batch_adata.obs[model_config['Celltype_COLUMN']].tolist()
+                batch_uniq_celltypes = set(batch_cell_annots)
+                batch_array_list = []
+                for celltype in batch_uniq_celltypes:
+                    idx = np.where(np.array(batch_cell_annots) == celltype)[0].tolist()
+                    batch_array_list.append(batch_data[idx, :])
+                F, p = scipy.stats.f_oneway(*batch_array_list)
+                F_updated = np.nan_to_num(F)
+                # sort with descending order
+                sorted_idx = np.argsort(F_updated)[::-1]
+                features = batch_adata.var_names[sorted_idx].tolist()
+                batch_features.append(features)
+            # find common features across all top model_config['num_features'] batches features
+            top_features_per_batch = [features[:model_config['num_features']*len(set(adata.obs['batch']))] for features in batch_features]
+            top_feature_sets = [set(flist) for flist in top_features_per_batch]
+            if top_feature_sets:
+                common_features = set.intersection(*top_feature_sets)
+            else:
+                common_features = set()
+            common_features = list(common_features)
+            common_features.sort()
+            if len(common_features) < model_config['num_features']:
+                # add averaged feature number from each batch from the top
+                print(f"Warning: fewer than {model_config['num_features']} common features found across batches. "
+                      f"Using {len(common_features)} features instead.")
+                # Collect candidate genes from each batch (in order), skipping those already in common_features
+                n_fill = (model_config['num_features'] - len(common_features)) // len(set(adata.obs['batch']))
+                candidate_genes = []
+                for features in batch_features:
+                    count = 0
+                    for gene in features:
+                        if gene not in common_features:
+                            candidate_genes.append(gene)
+                            count += 1
+                        if count >= n_fill:
+                            break
+                # Fill up to num_features
+                final_features = common_features + list(set(candidate_genes))
+            else:
+                print(f"Found {len(common_features)} common features across batches.")
+                final_features = common_features
+            final_features.sort()
+            adata = adata[:, final_features]
         else:
-            tmp_data = adata.X
-
-        ## calculate F-test
-        cell_annots = adata.obs[model_config['Celltype_COLUMN']].tolist()
-        uniq_celltypes = set(cell_annots)
-        array_list = []
-        for celltype in uniq_celltypes:
-            idx = np.where(np.array(cell_annots) == celltype)[0].tolist()
-            array_list.append(tmp_data[idx, :])
-        F, p = scipy.stats.f_oneway(*array_list)
-        F_updated = np.nan_to_num(F)
-        sorted_idx = np.argsort(F_updated)[-model_config['num_features']:]
-        features = adata.var_names[sorted_idx].tolist()
-        features.sort()
-        adata = adata[:, features]
+            if scipy.sparse.issparse(adata.X) or \
+                isinstance(adata.X, pd.DataFrame):
+                tmp_data = adata.X.toarray()
+            else:
+                tmp_data = adata.X
+            ## calculate F-test
+            cell_annots = adata.obs[model_config['Celltype_COLUMN']].tolist()
+            uniq_celltypes = set(cell_annots)
+            array_list = []
+            for celltype in uniq_celltypes:
+                idx = np.where(np.array(cell_annots) == celltype)[0].tolist()
+                array_list.append(tmp_data[idx, :])
+            F, p = scipy.stats.f_oneway(*array_list)
+            F_updated = np.nan_to_num(F)
+            sorted_idx = np.argsort(F_updated)[-model_config['num_features']:]
+            features = adata.var_names[sorted_idx].tolist()
+            features.sort()
+            adata = adata[:, features]
 
     if model_config['fs'] == "seurat_v3":
         print("Use seurat in scanpy to select features.\n")

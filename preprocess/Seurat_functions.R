@@ -6,7 +6,11 @@ predict_Seurat = function(ref_obj, tgt_obj, ref_celltype_ind='curated_celltype')
     celltype.predictions = TransferData(anchorset = transfer.anchors, refdata = ref_obj@meta.data[, ref_celltype_ind],
                                              dims=1:30)
     tgt_obj = AddMetaData(tgt_obj, metadata=celltype.predictions)
-    return(tgt_obj)
+
+    ref_obj = RunUMAP(ref_obj, dims = 1:30, reduction = "pca", return.model = TRUE)
+    tgt_obj = MapQuery(anchorset = transfer.anchors, reference = ref_obj, query = tgt_obj,
+        refdata = list(celltype = "celltype"), reference.reduction = "pca", reduction.model = "umap")
+    return(list('ref'=ref_obj, 'tgt'=tgt_obj))
 }
 
 load_Seurat_data = function(data_dir, experiment) {
@@ -205,6 +209,21 @@ load_Seurat_data = function(data_dir, experiment) {
         # --- load train dataset
         ProjecTIL_data_dir = file.path(data_dir, 'ProjecTILs_CD8T')
         train_obj = readRDS(file.path(ProjecTIL_data_dir, 'ProjecTILs_CD8T_trimmed_Cohort_integrated.RDS'))
+        # --- load test dataset
+        HNSC_data_dir = file.path(data_dir, 'HNSC_CD8T')
+        test_counts = readMM(file.path(HNSC_data_dir, 'HNSC_CD8T.mtx.gz'))
+        test_barcodes = scan(file.path(HNSC_data_dir, 'HNSC_CD8T_barcodes.tsv'), what=character())
+        test_genes = scan(file.path(HNSC_data_dir, 'HNSC_CD8T_genes.tsv'), what=character())
+        rownames(test_counts) = test_genes
+        colnames(test_counts) = test_barcodes
+        test_metadata = read.csv(file.path(HNSC_data_dir, 'HNSC_CD8T_metadata_curated.csv'), header=T, row.names=1)
+        test_obj = CreateSeuratObject(counts=test_counts, meta.data=test_metadata)
+    }
+
+    if (experiment == 'ProjecTILs_CD8_multibatch_cancertrimmed_to_HNSC_CD8') {
+        # --- load train dataset
+        ProjecTIL_data_dir = file.path(data_dir, 'ProjecTILs_CD8T')
+        train_obj = readRDS(file.path(ProjecTIL_data_dir, 'ProjecTILs_CD8T_trimmed_Cancer_integrated.RDS'))
         # --- load test dataset
         HNSC_data_dir = file.path(data_dir, 'HNSC_CD8T')
         test_counts = readMM(file.path(HNSC_data_dir, 'HNSC_CD8T.mtx.gz'))
@@ -444,11 +463,11 @@ load_Seurat_data = function(data_dir, experiment) {
 }
 
 ## --- Seurat for ProjecTIL each to HNSC data
-load_Seurat_data_for_ProjecTIL_to_HNSC = function(data_dir, ref_study) {
+load_Seurat_data_for_ProjecTIL_to_HNSC = function(data_dir, ref_study, ProjecTIL_data_dir) {
     require(Seurat)
     require(Matrix)
     # --- load train data
-    ProjecTIL_data_dir = file.path(data_dir, 'ProjecTILs_CD8T/trimmed')
+    # ProjecTIL_data_dir = file.path(data_dir, 'ProjecTILs_CD8T/trimmed')
     train_counts = readMM(file.path(ProjecTIL_data_dir, paste('ProjecTIL', ref_study, 'CD8T_trimmed.mtx.gz', sep='_')))
     train_genes = scan(file.path(ProjecTIL_data_dir, paste('ProjecTIL', ref_study, 'CD8T_trimmed_genes.tsv', sep='_')), what=character())
     train_barcodes = scan(file.path(ProjecTIL_data_dir, paste('ProjecTIL', ref_study, 'CD8T_trimmed_barcodes.tsv', sep='_')), what=character())

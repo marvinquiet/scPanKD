@@ -36,7 +36,7 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
     for (study in studies) {
         each_result_dir = file.path(ProjecTIL_result_dir, study)
         dir.create(each_result_dir, showWarnings = FALSE)
-        res = load_Seurat_data_for_ProjecTIL_to_HNSC(data_dir, ref_study=study)
+        res = load_Seurat_data_for_ProjecTIL_to_HNSC(data_dir, ref_study=study, ProjecTIL_data_dir=file.path(data_dir, 'ProjecTILs_CD8T/trimmed'))
         ref = make.reference(ref=res$train_obj, ndim = 20, seed = seed, recalculate.umap = TRUE,
                                     annotation.column = "celltype")
         ref$celltype = as.factor(ref$celltype) # need to be factorized
@@ -65,7 +65,42 @@ if (opt$experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8') {
         result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
         write.csv(result_df, file.path(each_result_dir, 'ProjecTIL_results_metrics.csv'), quote=F)
         }
-}  else {
+} else if (opt$experiment == 'ProjecTILs_each_CD8_cancertrimmed_to_HNSC_CD8') {
+    studies = c('HNSCC', 'Melanoma', 'SCC', 'Lung', 'Endometrial', 'Renal', 'Breast')
+    for (study in studies) {
+        each_result_dir = file.path(ProjecTIL_result_dir, study)
+        dir.create(each_result_dir, showWarnings = FALSE)
+        res = load_Seurat_data_for_ProjecTIL_to_HNSC(data_dir, ref_study=study, ProjecTIL_data_dir=file.path(data_dir, 'ProjecTILs_CD8T/Tissue_trimmed'))
+        ref = make.reference(ref=res$train_obj, ndim = 20, seed = seed, recalculate.umap = TRUE,
+                                    annotation.column = "celltype")
+        ref$celltype = as.factor(ref$celltype) # need to be factorized
+        query_obj = res$test_obj
+        query_obj$celltype_groundtruth = query_obj$celltype
+        predicted_test_obj = Run.ProjecTILs(query_obj, ref=ref, labels.col="celltype", skip.normalize=T)
+        write.csv(predicted_test_obj@meta.data, file.path(each_result_dir, 'ProjecTIL_predicted_results.csv'), quote=F)
+        na_num = sum(is.na(predicted_test_obj$celltype))
+        if (sum(is.na(predicted_test_obj$celltype)) > 0) {
+            cat('NA exists in prediction:', na_num, '\n')
+            if (na_num < round(0.01*dim(predicted_test_obj)[2])) {
+                # If the NAs number is not significant, replace it with a randomly predicted results
+                na_idx = which(is.na(predicted_test_obj$celltype))
+                sampled_celltypes = sample(unique(predicted_test_obj$celltype), na_num)
+                predicted_test_obj$celltype[na_idx] = sampled_celltypes
+            }
+            else {
+                cat('Too many NAs in the prediction, we cannot compute metrics!!')
+                quit("no")
+            }
+        }
+        # compute results
+        acc = calculate_accuracy(predicted_test_obj$celltype_groundtruth, predicted_test_obj$celltype)
+        F1 = calculate_macroF1(predicted_test_obj$celltype_groundtruth, predicted_test_obj$celltype)
+        ARI = calculate_ARI(predicted_test_obj$celltype_groundtruth, predicted_test_obj$celltype)
+        result_df = data.frame('Acc'=acc, 'macroF1'=F1, 'ARI'=ARI)
+        write.csv(result_df, file.path(each_result_dir, 'ProjecTIL_results_metrics.csv'), quote=F)
+    }
+
+} else {
     res = load_Seurat_data(data_dir, opt$experiment)
     train_obj = res$train_obj
     query_obj = res$test_obj

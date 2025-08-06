@@ -21,18 +21,19 @@ output_dir = result_dir+os.sep+args.experiment
 os.makedirs(output_dir, exist_ok=True)
 # --- train configure
 model_config = {
-    'fs':'F-test', # F-test is better than using Seurat HVG
+    'fs':'F-test', # 'fs_strategy': 'normal',# F-test is better than using Seurat HVG
     'num_features': 1000, 'optimizer': 'adamW',
-    'learning_rate': 0.001, 'batch_size': 32, 'max_epochs': 100, "distillation_epochs": 30,
+    'learning_rate': 0.001, 'batch_size': 32, 'max_epochs': 100, 
+    "distillation_epochs": 30,
     'MLP_DIMS': [256, 64, 16], 'teacher_MLP_DIMS': [64, 16], 'student_MLP_DIMS': [64, 16],
     'Celltype_COLUMN': "celltype", 'PredCelltype_COLUMN': "pred_celltype",
-    "entropy_quantile": 0.4}
+    "entropy_quantile": 0.3}
 # --- write config to file
 config_file = output_dir+os.sep+'model_config.txt'
 with open(config_file, 'w') as f:
     for key, value in model_config.items():
         f.write(f"{key}: {value}\n")
-model_config['device'] = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
+model_config['device'] = torch.device('cuda:3' if torch.cuda.is_available() else 'cpu')
 
 # --- ProjecTILs_CD8T to HNSC_CD8T -> each
 if args.experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8':
@@ -58,6 +59,30 @@ if args.experiment == 'ProjecTILs_each_CD8_to_HNSC_CD8':
                 'oneround': False, 'prefix': 'scPanKD_predicted_'}
         predict_args = argparse.Namespace(**test_input_dict)
         predict.predict(predict_args, model, model_config)
+
+if args.experiment == 'ProjecTILs_each_CD8_cancertrimmed_to_HNSC_CD8':
+    ProjecTIL_dir = data_dir+os.sep+'ProjecTILs_CD8T'+os.sep+'Tissue_trimmed'
+    studies = ['HNSCC', 'Melanoma', 'SCC', 'Lung', 'Endometrial', 'Renal', 'Breast']
+    for study in studies:
+        each_result_dir = output_dir+os.sep+study
+        os.makedirs(each_result_dir, exist_ok=True)
+        # --- train configure
+        train_input_dict = {'batch_dir': ProjecTIL_dir,
+                            'input': [f'ProjecTIL_{study}_CD8T_trimmed'],
+                            'batch_info': [0],
+                            'metadata': ProjecTIL_dir+os.sep+f'ProjecTIL_{study}_CD8T_trimmed_metadata.csv',
+                            'output_dir': each_result_dir,
+                            'prefix': 'train_'}
+        train_args = argparse.Namespace(**train_input_dict)
+        model = train.train_batch_MLP(train_args, model_config)
+        # --- test configure
+        test_input_dict = {'trained_model': each_result_dir+os.sep+'train_MLP_model',
+                'input': data_dir+os.sep+'HNSC_CD8T'+os.sep+'HNSC_CD8T',
+                'output_dir': each_result_dir,
+                'oneround': False, 'prefix': 'scPanKD_predicted_'}
+        predict_args = argparse.Namespace(**test_input_dict)
+        predict.predict(predict_args, model, model_config)
+
 # --- ProjecTILs_CD8T to HNSC_CD8T -> batch effect counted
 if args.experiment == 'ProjecTILs_CD8_multibatch_trimmed_to_HNSC_CD8':
     ProjecTIL_dir = data_dir+os.sep+'ProjecTILs_CD8T'+os.sep+'trimmed'
@@ -83,6 +108,64 @@ if args.experiment == 'ProjecTILs_CD8_multibatch_trimmed_to_HNSC_CD8':
             'oneround': False, 'prefix': 'scPanKD_predicted_'}
     predict_args = argparse.Namespace(**test_input_dict)
     predict.predict(predict_args, model, model_config)
+
+if args.experiment == 'ProjecTILs_CD8_multibatch_cancertrimmed_to_HNSC_CD8':
+    ProjecTIL_dir = data_dir+os.sep+'ProjecTILs_CD8T'+os.sep+'Tissue_trimmed'
+    studies = ['HNSCC', 'Melanoma', 'SCC', 'Lung', 'Endometrial', 'Renal', 'Breast']
+    studies_input = []
+    for study in studies:
+        studies_input.append(f'ProjecTIL_{study}_CD8T_trimmed')
+    batch_info = list(range(len(studies_input)))
+    # --- train configure
+    train_input_dict = {'batch_dir': ProjecTIL_dir,
+                        'input': studies_input,
+                        'batch_info': batch_info,
+                        'metadata': os.path.dirname(ProjecTIL_dir)+os.sep+'ProjecTIL_CD8T_metadata.csv',
+                        'output_dir': output_dir,
+                        'prefix': 'train_'}
+    train_args = argparse.Namespace(**train_input_dict)
+    model = train.train_batch_MLP(train_args, model_config)
+    # --- test configure
+    test_input_dict = {'trained_model': output_dir+os.sep+'train_MLP_model',
+            'input': data_dir+os.sep+'HNSC_CD8T'+os.sep+'HNSC_CD8T',
+            'output_dir': output_dir,
+            'oneround': False, 'prefix': 'scPanKD_predicted_'}
+    predict_args = argparse.Namespace(**test_input_dict)
+    student = predict.predict(predict_args, model, model_config)
+    # --- analyze data
+    import anndata
+    import numpy as np
+    import pandas as pd
+    import scanpy as sc
+    import matplotlib.pyplot as plt
+    # train_adata = anndata.read_h5ad(output_dir+os.sep+'train_adata.h5ad')
+    # x_train = _utils._extract_adata(train_adata)
+    # _, y_pred_features = student.predict(torch.tensor(x_train, dtype=torch.float32, device=model_config['device']))
+    # train_adata.obsm['embedding'] = y_pred_features.detach().cpu().numpy()
+    # train_adata.write_h5ad(output_dir+os.sep+predict_args.prefix+'reference_features.h5ad')
+    train_adata = anndata.read_h5ad(output_dir+os.sep+predict_args.prefix+'reference_features.h5ad')
+    test_adata = anndata.read_h5ad(output_dir+os.sep+predict_args.prefix+'query_features.h5ad')
+    test_pred_res = pd.read_csv(output_dir+os.sep+'scPanKD_predicted_celltypes-best.csv', index_col=0)
+    test_adata.obs = test_pred_res.loc[test_adata.obs_names, :]
+    embedding_df = np.concatenate((train_adata.obsm['embedding'], test_adata.X), axis=0)
+    embedding_adata = anndata.AnnData(X=embedding_df, obs=train_adata.obs.append(test_adata.obs))
+    # --- perform UMAP
+    sc.pp.neighbors(embedding_adata, use_rep='X')
+    sc.tl.umap(embedding_adata)
+    embedding_adata.write_h5ad(output_dir+os.sep+'joint_embedding_adata.h5ad')
+    # --- visualize
+    train_embedding_adata = embedding_adata[train_adata.obs_names, :]
+    test_embedding_adata = embedding_adata[test_adata.obs_names, :]
+    with plt.rc_context({"figure.figsize": (5, 3)}):
+        sc.pl.umap(train_embedding_adata, color=['Tissue', 'Cohort'], wspace=0.5)
+        plt.savefig(output_dir+os.sep+'train_umap_Tissue_Cancertype.pdf', bbox_inches='tight')
+    with plt.rc_context({"figure.figsize": (6, 3)}):
+        sc.pl.umap(test_embedding_adata, color=['pred_celltype'])
+        plt.savefig(output_dir+os.sep+'test_umap_Predcelltype.pdf', bbox_inches='tight')
+    with plt.rc_context({"figure.figsize": (6, 3)}):
+        sc.pl.umap(train_embedding_adata, color=['celltype'])
+        plt.savefig(output_dir+os.sep+'train_umap_Predcelltype.pdf', bbox_inches='tight')
+    
 
 # --- run 10 other experiments:
 if args.experiment == 'Chu_CD4_multibatch_validation': # Exp1

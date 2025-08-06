@@ -47,8 +47,8 @@ def load_train_batch_adata(args, model_config):
     ## preprocess data and select features
     train_adata = _utils._process_adata(train_adata, process_type='train')
     print("Data shape after processing: %d cells X %d genes" % (train_adata.shape[0], train_adata.shape[1]))
+    
     train_adata = _utils._select_feature(train_adata, model_config)
-    # TODO: test whether center scale for each batch would help.. -> not sure yet
     #train_adata = _utils._scale_data(train_adata) ## center-scale
     batch_adata_list = []
     for batch in set(train_adata.obs['batch']):
