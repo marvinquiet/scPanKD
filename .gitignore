@@ -7,7 +7,7 @@ results/
 *.log
 *.out
 wandb/
-*archived/
+*archived*/
 
 
 # Byte-compiled / optimized / DLL files
